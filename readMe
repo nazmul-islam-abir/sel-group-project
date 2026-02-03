@@ -1,1 +1,74 @@
-SEL FLUTTER PROJECT
+# 🎓 SEL Academic Management App
+
+[![Flutter](https://img.shields.io/badge/Flutter-2.24.0-blue?logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-9.22.0-yellow?logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-1.12.0-green?logo=supabase&logoColor=white)](https://supabase.com/)
+
+> A Flutter-based mobile application for managing academic activities with role-based access across predefined semesters.
+
+---
+
+## 📝 Project Overview
+
+The **SEL Academic Management App** is designed to streamline academic activities across **eight semesters**, providing a secure and organized digital platform for students, teachers, and administrators.
+
+The system ensures **role-based access control**, so users can only access the sections and courses they are assigned to.
+
+---
+
+## 👥 User Roles & Permissions
+
+### **Students**
+- Registered using **student ID & mobile number**
+- Can log in **only to their assigned semester**
+- Can:
+  - View enrolled courses 📚
+  - Access course materials 📄
+  - Track attendance ✅
+  - See marks distribution 🏅
+- **Read-only access** – cannot modify data
+
+### **Teachers**
+- Assigned to specific **courses & semesters**
+- Can:
+  - Upload & manage documents 📁
+  - Create/update/delete course content ✏️
+  - Record attendance 👨‍🏫
+  - Enter/update marks 📝
+
+### **Admin**
+- Manages all predefined data:
+  - Students
+  - Teachers
+  - Courses
+  - Semesters
+  - Assignments (Teacher-Course, Student-Semester)
+
+---
+
+## 🌟 Key Features
+
+- 🔐 **Role-Based Access Control**
+- 📱 **Flutter Cross-Platform Frontend**
+- 🔑 **Firebase Authentication**
+- 🗄️ **Supabase Database**
+- 📂 **Document Management**
+- ✅ **Attendance Tracking**
+- 🏆 **Marks Management**
+- 📊 **Organized Semester Management**
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer       | Technology                       |
+|------------|----------------------------------|
+| Frontend    | Flutter                          |
+| Backend     | Firebase Authentication, Supabase |
+| Database    | Supabase                         |
+| Platform    | Android & iOS (Cross-platform)  |
+
+---
+
+## 🏗️ Project Structure
+
