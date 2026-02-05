@@ -1,97 +1,38 @@
-# 🎓 SEL Academic Management App
+1️) Add remote origin 
+git remote add origin https://github.com/nazmul-islam-abir/sel-group-project.git
+
+Verify:
+git remote -v
+
+You should see:
+origin  https://github.com/nazmul-islam-abir/sel-group-project.git (fetch)
+origin  https://github.com/nazmul-islam-abir/sel-group-project.git (push)
+
+
+2️) Switch to your local branch Abir/Alavy/Minhaj/Junayed(Pick Your Name Only)
+Check branch:
+git branch
+
+git checkout -b Abir/Alavy/Minhaj/Junayed
+
+
+3️) Pull remote branch to sync
+git pull origin Abir/Alavy/Minhaj/Junayed --rebase
 
 
 
-> A Flutter-based mobile application for managing academic activities with role-based access across predefined semesters.
-
----
-
-## 📝 Project Overview
-
-The **SEL Academic Management App** is designed to streamline academic activities across **eight semesters**, providing a secure and organized digital platform for students, teachers, and administrators.
-
-The system ensures **role-based access control**, so users can only access the sections and courses they are assigned to.
-
----
-
-## 👥 User Roles & Permissions
-
-### **Students**
-- Registered using **student ID & mobile number**
-- Can log in **only to their assigned semester**
-- Can:
-  - View enrolled courses 📚
-  - Access course materials 📄
-  - Track attendance ✅
-  - See marks distribution 🏅
-- **Read-only access** – cannot modify data
-
-### **Teachers**
-- Assigned to specific **courses & semesters**
-- Can:
-  - Upload & manage documents 📁
-  - Create/update/delete course content ✏️
-  - Record attendance 👨‍🏫
-  - Enter/update marks 📝
-
-### **Admin**
-- Manages all predefined data:
-  - Students
-  - Teachers
-  - Courses
-  - Semesters
-  - Assignments (Teacher-Course, Student-Semester)
-
----
-
-## 🌟 Key Features
-
-- 🔐 **Role-Based Access Control**
-- 📱 **Flutter Cross-Platform Frontend**
-- 🔑 **Firebase Authentication**
-- 🗄️ **Supabase Database**
-- 📂 **Document Management**
-- ✅ **Attendance Tracking**
-- 🏆 **Marks Management**
-- 📊 **Organized Semester Management**
-
----
-
-## 🛠️ Technology Stack
-
-| Layer       | Technology                       |
-|------------|----------------------------------|
-| Frontend    | Flutter                          |
-| Backend     | Firebase Authentication, Supabase |
-| Database    | Supabase                         |
-| Platform    | Android & iOS (Cross-platform)  |
-
----
-
-## 🏗️ Project Structure
-lib/
-├── alavy/ # Branch-specific code for Alavy
-├── junayed/ # Branch-specific code for Junayed
-├── minhaj/ # Branch-specific code for Minhaj
-├── abir/ # Branch-specific code for Abir
-└── main.dart # Main entry point
-android/
-ios/
-pubspec.yaml
-
-Install dependencies:
-
-flutter pub get
+4️) Add & commit any new files
+git add .
+git commit -m "Added files to Abir/Alavy/Minhaj/Junayed branch"
 
 
-Run the app:
+5️) Push your branch to GitHub
+git push -u origin Abir/Alavy/Minhaj/Junayed
 
-flutter run
+✅ Done! Now your local Abir branch is synced with remote and all files are pushed.
 
+Optional: Future pushes
+From now on, you can just run:
+git push
 
-Configure Firebase & Supabase:
-
-Firebase for Authentication
-
-Supabase for Database Storage
-
+No need to specify origin or branch again.
