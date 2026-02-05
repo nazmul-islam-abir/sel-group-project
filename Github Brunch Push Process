@@ -1,0 +1,39 @@
+1️) Add remote origin 
+git remote add origin https://github.com/nazmul-islam-abir/sel-group-project.git
+
+Verify:
+git remote -v
+
+You should see:
+origin  https://github.com/nazmul-islam-abir/sel-group-project.git (fetch)
+origin  https://github.com/nazmul-islam-abir/sel-group-project.git (push)
+
+
+2️) Switch to your local branch Abir/Alavy/Minhaj/Junayed(Pick Your Name Only)
+Check branch:
+git branch
+
+git checkout -b Abir/Alavy/Minhaj/Junayed
+
+
+3️) Pull remote branch to sync
+git pull origin Abir/Alavy/Minhaj/Junayed --rebase
+
+
+
+4️) Add & commit any new files
+git add .
+git commit -m "Added files to Abir/Alavy/Minhaj/Junayed branch"
+
+
+5️) Push your branch to GitHub
+git push -u origin Abir/Alavy/Minhaj/Junayed
+
+✅ Done! Now your local Abir branch is synced with remote and all files are pushed.
+
+Optional: Future pushes
+From now on, you can just run:
+git push
+
+No need to specify origin or branch again.
+
