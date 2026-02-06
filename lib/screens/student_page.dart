@@ -1,116 +1,181 @@
 import 'package:flutter/material.dart';
+import '../connectors/supabase_connector.dart';
 
-class MyStudent extends StatelessWidget {
+class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
+
+  @override
+  State<MyStudent> createState() => _MyStudentState();
+}
+
+class _MyStudentState extends State<MyStudent> {
+  // Variables to store data from Supabase
+  String name = '';
+  String studentId = '';
+  String semester = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadStudentData(); // Load data when page opens
+  }
+
+  /// 🔄 Fetch student data using connector
+  Future<void> loadStudentData() async {
+    final data = await SupabaseConnector.getStudent();
+
+    setState(() {
+      name = data['name'];
+      studentId = data['student_id'];
+      semester = data['semester'];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade200,
       appBar: AppBar(
-        title: const Text("Student Dashboard"),
+        title: const Text("Student Profile"),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        child: Center(
-          child: Column(
-            children: [
+        child: Column(
+          children: [
 
-              const SizedBox(height: 20),
-
-              studentBox(
-                context: context,
-                title: "Student ID: 221-15-1234\nSemester: Spring 2025",
-                icon: Icons.person,
-                colors: [Colors.blueGrey, Colors.blue],
+            // ================= PROFILE HEADER =================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.indigo, Colors.blue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
+              child: Column(
+                children: [
+                  const CircleAvatar(
+                    radius: 45,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, size: 50, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 10),
 
-              const SizedBox(height: 30),
+                  // Student Name
+                  Text(
+                    name.isEmpty ? "Loading..." : name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
 
-              studentBox(
-                context: context,
-                title: "Enrolled Courses",
-                icon: Icons.menu_book,
-                colors: [Colors.black, Colors.deepPurple],
+                  const SizedBox(height: 4),
+
+                  // Student ID
+                  Text(
+                    "Student ID: ${studentId.isEmpty ? 'Loading...' : studentId}",
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+
+                  // Semester
+                  Text(
+                    "Semester: ${semester.isEmpty ? 'Loading...' : semester}",
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-              studentBox(
-                context: context,
-                title: "Course Materials",
-                icon: Icons.picture_as_pdf,
-                colors: [Colors.teal, Colors.green],
-              ),
+            // ================= INFO SECTIONS =================
+            infoTile(
+              context,
+              icon: Icons.menu_book,
+              title: "Enrolled Courses",
+              subtitle: "View registered subjects",
+            ),
 
-              const SizedBox(height: 20),
+            infoTile(
+              context,
+              icon: Icons.picture_as_pdf,
+              title: "Course Materials",
+              subtitle: "Lecture notes & resources",
+            ),
 
-              studentBox(
-                context: context,
-                title: "Attendance",
-                icon: Icons.check_circle,
-                colors: [Colors.orange, Colors.deepOrange],
-              ),
+            infoTile(
+              context,
+              icon: Icons.check_circle,
+              title: "Attendance",
+              subtitle: "Track class presence",
+            ),
 
-              const SizedBox(height: 20),
+            infoTile(
+              context,
+              icon: Icons.bar_chart,
+              title: "Marks Distribution",
+              subtitle: "View exam & quiz results",
+            ),
 
-              studentBox(
-                context: context,
-                title: "Marks Distribution",
-                icon: Icons.bar_chart,
-                colors: [Colors.red, Colors.redAccent],
-              ),
-
-              const SizedBox(height: 30),
-            ],
-          ),
+            const SizedBox(height: 30),
+          ],
         ),
       ),
     );
   }
-}
 
-Widget studentBox({
-  required BuildContext context,
-  required String title,
-  required IconData icon,
-  required List<Color> colors,
-}) {
-  return Container(
-    width: MediaQuery.of(context).size.width * .9,
-    height: 120,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: colors,
-        begin: Alignment.topLeft,
-        end: Alignment.topRight,
-      ),
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: const [
-        BoxShadow(
-          color: Color.fromRGBO(0, 0, 0, 0.2),
-          blurRadius: 6,
-          offset: Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Padding(
+  // ================= SIMPLE INFO TILE =================
+  Widget infoTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: MediaQuery.of(context).size.width * 0.92,
+      margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromRGBO(0, 0, 0, 0.1),
+            blurRadius: 6,
+            offset: Offset(0, 3),
           ),
         ],
       ),
-    ),
-  );
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.blue.shade50,
+            child: Icon(icon, color: Colors.blue),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
