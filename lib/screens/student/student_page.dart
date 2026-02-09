@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../connectors/supabase_connector.dart';
+import '../../connectors/supabase_connector.dart';
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
@@ -9,10 +9,13 @@ class MyStudent extends StatefulWidget {
 }
 
 class _MyStudentState extends State<MyStudent> {
-  // Variables to store data from Supabase
+  // ================= STUDENT INFO =================
   String name = '';
   String studentId = '';
   String semester = '';
+
+  // ================= ENROLLED COURSES =================
+  List<Map<String, dynamic>> courses = [];
 
   @override
   void initState() {
@@ -20,14 +23,23 @@ class _MyStudentState extends State<MyStudent> {
     loadStudentData(); // Load data when page opens
   }
 
-  /// 🔄 Fetch student data using connector
+  /// 🔄 Load student info + enrolled courses from Supabase
   Future<void> loadStudentData() async {
-    final data = await SupabaseConnector.getStudent();
+    // Step 1: Get student basic info
+    final studentData = await SupabaseConnector.getStudent();
 
+    // Step 2: Get enrolled courses using student_id
+    final enrolledCourses =
+        await SupabaseConnector.getEnrolledCourses(
+      studentData['student_id'],
+    );
+
+    // Step 3: Update UI
     setState(() {
-      name = data['name'];
-      studentId = data['student_id'];
-      semester = data['semester'];
+      name = studentData['name'];
+      studentId = studentData['student_id'];
+      semester = studentData['semester'];
+      courses = enrolledCourses;
     });
   }
 
@@ -92,14 +104,72 @@ class _MyStudentState extends State<MyStudent> {
 
             const SizedBox(height: 20),
 
-            // ================= INFO SECTIONS =================
-            infoTile(
-              context,
-              icon: Icons.menu_book,
-              title: "Enrolled Courses",
-              subtitle: "View registered subjects",
+            // ================= ENROLLED COURSES =================
+            Container(
+              width: MediaQuery.of(context).size.width * 0.92,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(0, 0, 0, 0.1),
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Enrolled Courses",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // If no courses found
+                  if (courses.isEmpty)
+                    const Text("No courses enrolled"),
+
+                  // Show list of courses
+                  ...courses.map((course) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.book, color: Colors.blue),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                course['course_name'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                course['course_code'],
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
 
+            const SizedBox(height: 20),
+
+            // ================= OTHER SECTIONS =================
             infoTile(
               context,
               icon: Icons.picture_as_pdf,

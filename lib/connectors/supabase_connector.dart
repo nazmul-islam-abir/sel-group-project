@@ -18,4 +18,19 @@ class SupabaseConnector {
     // Return data to UI page
     return response;
   }
+
+
+  /// 📚 Fetch enrolled courses for a student
+static Future<List<Map<String, dynamic>>> getEnrolledCourses(
+    String studentId) async {
+  // Query enrolled_courses table where student_id matches
+  final response = await _client
+      .from('enrolled_courses')
+      .select()
+      .eq('student_id', studentId);
+
+  // Convert response to List<Map>
+  return List<Map<String, dynamic>>.from(response);
+}
+
 }

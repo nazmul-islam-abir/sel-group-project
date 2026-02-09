@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/screens/student_page.dart';
+
+
+import 'package:myapp/screens/student/student_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -19,6 +21,7 @@ class HomePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            
             SizedBox(
               
               width: 200,
