@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/student/navigation_page.dart';
 import '../../connectors/supabase_connector.dart';
-import 'courses_page.dart'; // Import the new courses page
+// Import the new courses page
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});

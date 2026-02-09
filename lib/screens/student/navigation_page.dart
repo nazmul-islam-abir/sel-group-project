@@ -94,9 +94,9 @@ class _NavigationPageState extends State<NavigationPage> {
     }
 
     return BasePage(
-      child: currentPage,
       currentIndex: selectedIndex,
       onNavItemTapped: onItemTapped,
+      child: currentPage,
     );
   }
 }
