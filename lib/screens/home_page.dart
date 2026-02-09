@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/screens/student/navigation_page.dart';
 
 
-import 'package:myapp/screens/student/student_page.dart';
+
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -26,15 +27,15 @@ class HomePage extends StatelessWidget {
               
               width: 200,
               child: ElevatedButton(onPressed: (){
-                Navigator.push(context, MaterialPageRoute(builder: (context)=>MyStudent()));
+                Navigator.push(context, MaterialPageRoute(builder: (context)=>NavigationPage()));
         
               }, child: Row(
                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                  
-                  Text("HELLO WORLD"),
+                  Text("Student Page"),
                   SizedBox(width: 20,),
-                  Icon(Icons.add_reaction_outlined)             ],
+                  Icon(Icons.person_3_rounded)             ],
         
               )),
             )
