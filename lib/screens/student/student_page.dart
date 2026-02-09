@@ -1,5 +1,7 @@
+// student_page.dart (Updated)
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
+import 'courses_page.dart'; // Import the new courses page
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
@@ -13,9 +15,7 @@ class _MyStudentState extends State<MyStudent> {
   String name = '';
   String studentId = '';
   String semester = '';
-
-  // ================= ENROLLED COURSES =================
-  List<Map<String, dynamic>> courses = [];
+  int courseCount = 0; // Track number of courses
 
   @override
   void initState() {
@@ -23,24 +23,28 @@ class _MyStudentState extends State<MyStudent> {
     loadStudentData(); // Load data when page opens
   }
 
-  /// 🔄 Load student info + enrolled courses from Supabase
+  /// 🔄 Load student info from Supabase
   Future<void> loadStudentData() async {
-    // Step 1: Get student basic info
-    final studentData = await SupabaseConnector.getStudent();
+    try {
+      // Get student basic info
+      final studentData = await SupabaseConnector.getStudent();
 
-    // Step 2: Get enrolled courses using student_id
-    final enrolledCourses =
-        await SupabaseConnector.getEnrolledCourses(
-      studentData['student_id'],
-    );
+      // Get enrolled courses count
+      final enrolledCourses = await SupabaseConnector.getEnrolledCourses(
+        studentData['student_id'],
+      );
 
-    // Step 3: Update UI
-    setState(() {
-      name = studentData['name'];
-      studentId = studentData['student_id'];
-      semester = studentData['semester'];
-      courses = enrolledCourses;
-    });
+      // Update UI
+      setState(() {
+        name = studentData['name'];
+        studentId = studentData['student_id'];
+        semester = studentData['semester'];
+        courseCount = enrolledCourses.length; // Store count only
+      });
+    } catch (error) {
+      print("Error loading student data: $error");
+      // You can show an error message here if needed
+    }
   }
 
   @override
@@ -54,7 +58,6 @@ class _MyStudentState extends State<MyStudent> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-
             // ================= PROFILE HEADER =================
             Container(
               width: double.infinity,
@@ -104,66 +107,73 @@ class _MyStudentState extends State<MyStudent> {
 
             const SizedBox(height: 20),
 
-            // ================= ENROLLED COURSES =================
-            Container(
-              width: MediaQuery.of(context).size.width * 0.92,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color.fromRGBO(0, 0, 0, 0.1),
-                    blurRadius: 6,
-                    offset: Offset(0, 3),
+            // ================= COURSES CARD (Now with Navigation) =================
+            GestureDetector(
+              onTap: () {
+                // Navigate to Courses Page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CoursesPage(),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Enrolled Courses",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                );
+              },
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.92,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromRGBO(0, 0, 0, 0.1),
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // If no courses found
-                  if (courses.isEmpty)
-                    const Text("No courses enrolled"),
-
-                  // Show list of courses
-                  ...courses.map((course) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Icon
+                    CircleAvatar(
+                      backgroundColor: Colors.blue.shade50,
+                      child: const Icon(Icons.school, color: Colors.blue),
+                    ),
+                    
+                    const SizedBox(width: 16),
+                    
+                    // Text content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.book, color: Colors.blue),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                course['course_name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                course['course_code'],
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                            ],
+                          const Text(
+                            "My Courses",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            courseCount == 0 
+                              ? "No courses enrolled" 
+                              : "View $courseCount enrolled courses",
+                            style: const TextStyle(color: Colors.grey),
                           ),
                         ],
                       ),
-                    );
-                  }),
-                ],
+                    ),
+                    
+                    // Arrow icon
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.blue,
+                      size: 18,
+                    ),
+                  ],
+                ),
               ),
             ),
 
