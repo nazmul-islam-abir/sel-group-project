@@ -6,11 +6,13 @@ import '../../connectors/supabase_connector.dart';
 class CourseDetailPage extends StatefulWidget {
   final String courseCode;
   final String courseName;
+  final VoidCallback onBack; // To go back to courses list
 
   const CourseDetailPage({
     super.key,
     required this.courseCode,
     required this.courseName,
+    required this.onBack,
   });
 
   @override
@@ -27,11 +29,11 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     loadFiles();
   }
 
-  // Simple function to load files
   Future<void> loadFiles() async {
     setState(() => loading = true);
     
-    // Get files from Supabase
+    // Create a simple course_files table in Supabase first
+    // Table structure: id, course_code, file_name, file_url
     files = await SupabaseConnector.getCourseFiles(widget.courseCode);
     
     setState(() => loading = false);
@@ -39,36 +41,75 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.courseName),
-      ),
-      body: _buildBody(),
+    return Column(
+      children: [
+        // Header with back button
+        Container(
+          padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
+          color: Colors.blue,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: widget.onBack,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.courseName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Course content
+        Expanded(
+          child: _buildBody(),
+        ),
+      ],
     );
   }
 
   Widget _buildBody() {
     if (loading) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (files.isEmpty) {
       return Center(
-        child: Text("No files available for this course"),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              "No files available",
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text("Check back later for materials"),
+          ],
+        ),
       );
     }
 
     return ListView.builder(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       itemCount: files.length,
       itemBuilder: (context, index) {
         final file = files[index];
         return Card(
           child: ListTile(
-            leading: Icon(Icons.picture_as_pdf, color: Colors.red),
+            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
             title: Text(file['file_name'] ?? 'Unknown File'),
-            subtitle: Text('Click to view'),
-            trailing: Icon(Icons.open_in_new),
+            subtitle: const Text('Click to view'),
+            trailing: const Icon(Icons.open_in_new),
             onTap: () => _openFile(file['file_url']),
           ),
         );
@@ -76,14 +117,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     );
   }
 
-  // Simple function to open file
   void _openFile(String url) async {
     try {
       await launchUrl(Uri.parse(url));
     } catch (e) {
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Cannot open file: $e")),
+        SnackBar(content: Text("Cannot open file")),
       );
     }
   }

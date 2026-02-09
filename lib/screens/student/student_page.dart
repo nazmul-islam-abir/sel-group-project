@@ -1,5 +1,6 @@
 // student_page.dart (Updated)
 import 'package:flutter/material.dart';
+import 'package:myapp/screens/student/navigation_page.dart';
 import '../../connectors/supabase_connector.dart';
 import 'courses_page.dart'; // Import the new courses page
 
@@ -114,7 +115,7 @@ class _MyStudentState extends State<MyStudent> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const CoursesPage(),
+                    builder: (context) => const NavigationPage(initialIndex: 1),
                   ),
                 );
               },

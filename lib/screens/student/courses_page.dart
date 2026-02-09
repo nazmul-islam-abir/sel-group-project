@@ -1,127 +1,82 @@
 // courses_page.dart
 import 'package:flutter/material.dart';
-import 'package:myapp/screens/student/course_detail_page.dart';
-import '../../connectors/supabase_connector.dart'; // Import Supabase connector
+import '../../connectors/supabase_connector.dart';
 
 class CoursesPage extends StatefulWidget {
-  const CoursesPage({super.key});
+  final Function(Map<String, dynamic>)? onCourseSelected; // NEW
+  
+  const CoursesPage({
+    super.key,
+    this.onCourseSelected, // NEW
+  });
 
   @override
   State<CoursesPage> createState() => _CoursesPageState();
 }
 
 class _CoursesPageState extends State<CoursesPage> {
-  // ================= STATE VARIABLES =================
-  List<Map<String, dynamic>> courses = []; // List to store courses
-  bool isLoading = true; // Loading state
-  String studentId = ''; // To store student ID
+  List<Map<String, dynamic>> courses = [];
+  bool isLoading = true;
+  String studentId = '';
 
   @override
   void initState() {
     super.initState();
-    loadStudentCourses(); // Load courses when page opens
+    loadStudentCourses();
   }
 
-  /// 📥 Function to load student's courses from Supabase
   Future<void> loadStudentCourses() async {
     try {
-      setState(() {
-        isLoading = true; // Show loading
-      });
-
-      // Step 1: Get student info to get student_id
+      setState(() => isLoading = true);
       final studentData = await SupabaseConnector.getStudent();
       studentId = studentData['student_id'];
-
-      // Step 2: Get enrolled courses using student_id
       final enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
-
-      // Step 3: Update state with courses
       setState(() {
         courses = enrolledCourses;
-        isLoading = false; // Hide loading
+        isLoading = false;
       });
     } catch (error) {
-      // Handle errors
-      print("Error loading courses: $error");
-      setState(() {
-        isLoading = false; // Hide loading even if error
-      });
-      
-      // Show error message to user (optional)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to load courses: $error"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print("Error: $error");
+      setState(() => isLoading = false);
     }
   }
 
-  /// 🔄 Function to refresh courses list
   Future<void> refreshCourses() async {
-    await loadStudentCourses(); // Reload data
+    await loadStudentCourses();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Courses"), // Page title
+        title: const Text("My Courses"),
         centerTitle: true,
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
       ),
       body: RefreshIndicator(
-        onRefresh: refreshCourses, // Pull to refresh
-        child: _buildBody(), // Build the main content
+        onRefresh: refreshCourses,
+        child: _buildBody(),
       ),
     );
   }
 
-  /// 🏗️ Function to build the main content based on state
   Widget _buildBody() {
     if (isLoading) {
-      // Show loading indicator
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(), // Loading spinner
-            SizedBox(height: 16),
-            Text("Loading your courses..."),
-          ],
-        ),
+        child: CircularProgressIndicator(),
       );
     }
 
     if (courses.isEmpty) {
-      // Show empty state
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.book_outlined,
-              size: 80,
-              color: Colors.grey.shade400,
-            ),
+            Icon(Icons.book_outlined, size: 80, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text(
-              "No courses enrolled",
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Check with your department",
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
+            Text("No courses enrolled", style: TextStyle(fontSize: 18)),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: refreshCourses, // Try again
+              onPressed: refreshCourses,
               child: const Text("Refresh"),
             ),
           ],
@@ -129,137 +84,80 @@ class _CoursesPageState extends State<CoursesPage> {
       );
     }
 
-    // Show list of courses
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: courses.length,
       itemBuilder: (context, index) {
-        final course = courses[index];
-        return _buildCourseCard(course);
+        return _buildCourseCard(courses[index]);
       },
     );
   }
 
-  /// 🎴 Function to build a course card
-  // In courses_page.dart, update _buildCourseCard:
-Widget _buildCourseCard(Map<String, dynamic> course) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.2),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          // Course icon
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              Icons.school,
-              color: Colors.blue.shade700,
-              size: 30,
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Course details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Course name
-                Text(
-                  course['course_name'] ?? 'Unknown Course',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                
-                const SizedBox(height: 4),
-                
-                // Course code
-                Text(
-                  "Code: ${course['course_code'] ?? 'N/A'}",
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Simple button to view files
-          IconButton(
-            onPressed: () {
-              // Navigate to course detail page
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CourseDetailPage(
-                    courseCode: course['course_code'],
-                    courseName: course['course_name'],
-                  ),
-                ),
-              );
-            },
-            icon: Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.blue.shade600,
-            ),
+  Widget _buildCourseCard(Map<String, dynamic> course) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-    ),
-  );
-}
-
-  /// ℹ️ Function to show course details (optional)
-  void _showCourseDetails(Map<String, dynamic> course) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(course['course_name'] ?? 'Course Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
           children: [
-            Text("Course Code: ${course['course_code'] ?? 'N/A'}"),
-            const SizedBox(height: 8),
-            if (course['instructor'] != null)
-              Text("Instructor: ${course['instructor']}"),
-            const SizedBox(height: 8),
-            if (course['credits'] != null)
-              Text("Credits: ${course['credits']}"),
-            const SizedBox(height: 8),
-            Text(
-              "More details coming soon...",
-              style: TextStyle(color: Colors.grey.shade600),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.school,
+                color: Colors.blue.shade700,
+                size: 30,
+              ),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    course['course_name'] ?? 'Unknown Course',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Code: ${course['course_code'] ?? 'N/A'}",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            
+            // UPDATED: Use the callback instead of Navigator
+            IconButton(
+              onPressed: () {
+                if (widget.onCourseSelected != null) {
+                  widget.onCourseSelected!(course);
+                }
+              },
+              icon: Icon(Icons.arrow_forward_ios, color: Colors.blue.shade600),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
       ),
     );
   }
