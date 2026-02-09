@@ -33,4 +33,18 @@ static Future<List<Map<String, dynamic>>> getEnrolledCourses(
   return List<Map<String, dynamic>>.from(response);
 }
 
+static Future<List<Map<String, dynamic>>> getCourseFiles(String courseCode) async {
+    try {
+      final response = await _client
+          .from('course_files')  // Your table name
+          .select()              // Select all columns
+          .eq('course_code', courseCode);  // Filter by course code
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error getting files: $e");
+      return [];  // Return empty list if error
+    }
+}
+
 }

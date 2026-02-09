@@ -1,5 +1,6 @@
 // courses_page.dart
 import 'package:flutter/material.dart';
+import 'package:myapp/screens/student/course_detail_page.dart';
 import '../../connectors/supabase_connector.dart'; // Import Supabase connector
 
 class CoursesPage extends StatefulWidget {
@@ -140,98 +141,94 @@ class _CoursesPageState extends State<CoursesPage> {
   }
 
   /// 🎴 Function to build a course card
-  Widget _buildCourseCard(Map<String, dynamic> course) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  // In courses_page.dart, update _buildCourseCard:
+Widget _buildCourseCard(Map<String, dynamic> course) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.2),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // Course icon
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.school,
+              color: Colors.blue.shade700,
+              size: 30,
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Course details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Course name
+                Text(
+                  course['course_name'] ?? 'Unknown Course',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                
+                const SizedBox(height: 4),
+                
+                // Course code
+                Text(
+                  "Code: ${course['course_code'] ?? 'N/A'}",
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Simple button to view files
+          IconButton(
+            onPressed: () {
+              // Navigate to course detail page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CourseDetailPage(
+                    courseCode: course['course_code'],
+                    courseName: course['course_name'],
+                  ),
+                ),
+              );
+            },
+            icon: Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.blue.shade600,
+            ),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Course icon/avatar
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.school,
-                color: Colors.blue.shade700,
-                size: 30,
-              ),
-            ),
-            
-            const SizedBox(width: 16),
-            
-            // Course details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Course name
-                  Text(
-                    course['course_name'] ?? 'Unknown Course',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 4),
-                  
-                  // Course code
-                  Text(
-                    "Code: ${course['course_code'] ?? 'N/A'}",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  // Additional info (you can add more fields here)
-                  if (course['instructor'] != null)
-                    Text(
-                      "Instructor: ${course['instructor']}",
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 14,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            
-            // Optional: More info button
-            IconButton(
-              onPressed: () {
-                // You can add navigation to course details here
-                _showCourseDetails(course);
-              },
-              icon: Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.blue.shade600,
-                size: 18,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
+}
 
   /// ℹ️ Function to show course details (optional)
   void _showCourseDetails(Map<String, dynamic> course) {
