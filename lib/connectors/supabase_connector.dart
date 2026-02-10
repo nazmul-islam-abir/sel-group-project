@@ -61,5 +61,19 @@ static Future<List<Map<String, dynamic>>> getCourseFiles(String courseCode) asyn
       return [];
     }
   }
+  // 4. GET STUDENT MARKS (with 2 CTs)
+  static Future<List<Map<String, dynamic>>> getStudentMarks(String studentId) async {
+    try {
+      final response = await _client
+          .from('student_marks')
+          .select('*')  // Get all columns
+          .eq('student_id', studentId)
+          .order('course_code', ascending: true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error getting marks: $e");
+      return [];
+    }
+  }
 
 }

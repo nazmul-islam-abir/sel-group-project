@@ -1,4 +1,4 @@
-// base_page.dart
+// base_page.dart for navbar
 import 'package:flutter/material.dart';
 import 'navigation_bar.dart';
 
