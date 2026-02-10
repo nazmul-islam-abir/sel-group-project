@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+
 /// This file handles ALL Supabase related work
 /// UI pages should NEVER talk to Supabase directly
 class SupabaseConnector {
