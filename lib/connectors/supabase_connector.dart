@@ -47,4 +47,19 @@ static Future<List<Map<String, dynamic>>> getCourseFiles(String courseCode) asyn
     }
   }
 
+  static Future<List<Map<String, dynamic>>> getCourseMaterials(String courseCode) async {
+    try {
+      final response = await _client
+          .from('course_materials')  // Your new single table
+          .select()
+          .eq('course_code', courseCode)
+          .order('created_at', ascending: false); // Newest first
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error fetching course materials: $e");
+      return [];
+    }
+  }
+
 }
