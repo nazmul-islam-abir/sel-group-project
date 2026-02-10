@@ -76,4 +76,40 @@ static Future<List<Map<String, dynamic>>> getCourseFiles(String courseCode) asyn
     }
   }
 
+  /// 📅 Get student attendance
+  static Future<List<Map<String, dynamic>>> getAttendance(String studentId) async {
+    try {
+      final response = await _client
+          .from('attendance')
+          .select()
+          .eq('student_id', studentId)
+          .order('date', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error getting attendance: $e");
+      return [];
+    }
+  }
+  
+  /// 📅 Get attendance by course
+  static Future<List<Map<String, dynamic>>> getCourseAttendance(
+    String studentId, 
+    String courseCode
+  ) async {
+    try {
+      final response = await _client
+          .from('attendance')
+          .select()
+          .eq('student_id', studentId)
+          .eq('course_code', courseCode)
+          .order('date', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error getting course attendance: $e");
+      return [];
+    }
+  }
+
 }

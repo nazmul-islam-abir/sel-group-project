@@ -314,8 +314,9 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     if (url == null) return Icons.insert_drive_file;
     final lowerUrl = url.toLowerCase();
     if (lowerUrl.contains('.pdf')) return Icons.picture_as_pdf;
-    if (lowerUrl.contains('.jpg') || lowerUrl.contains('.jpeg') || lowerUrl.contains('.png')) 
+    if (lowerUrl.contains('.jpg') || lowerUrl.contains('.jpeg') || lowerUrl.contains('.png')) {
       return Icons.image;
+    }
     if (lowerUrl.contains('.doc')) return Icons.description;
     if (lowerUrl.contains('.ppt')) return Icons.slideshow;
     return Icons.insert_drive_file;
