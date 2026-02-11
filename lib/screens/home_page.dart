@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/screens/Admin/Admin_Page.dart';
 import 'package:myapp/screens/student/navigation_page.dart';
-import 'package:myapp/screens/admin/admin_navigation_page.dart'; // <-- create this page
+import 'package:myapp/screens/Admin/Admin_Page.dart';  // Import your Admin page
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -13,7 +12,7 @@ class HomePage extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          "Hello This My Homepage",
+          "Hello This Is My Homepage",
           style: TextStyle(
             fontSize: 20,
             color: Color.fromARGB(255, 121, 11, 11),
@@ -34,7 +33,7 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => NavigationPage(),
+                      builder: (context) => const NavigationPage(), // ✅ Correct syntax
                     ),
                   );
                 },
@@ -51,7 +50,7 @@ class HomePage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Admin Button
+            // Admin Button - Navigate directly to MyAdmin
             SizedBox(
               width: 200,
               child: ElevatedButton(
@@ -59,7 +58,7 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AdminNavigationPage(),
+                      builder: (context) => const MyAdmin(), // ✅ Use MyAdmin, not AdminNavigationPage
                     ),
                   );
                 },
