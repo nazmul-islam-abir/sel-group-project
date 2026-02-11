@@ -112,5 +112,60 @@ static Future<List<Map<String, dynamic>>> getCourseFiles(String courseCode) asyn
       return [];
     }
   }
+  // ==================== TODO/ALERT FUNCTIONS ====================
+
+// 1. GET all todos for student
+static Future<List<Map<String, dynamic>>> getMyTodos(String studentId) async {
+  try {
+    final response = await _client
+        .from('student_todos')
+        .select()
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  } catch (e) {
+    print("Error loading todos: $e");
+    return [];
+  }
+}
+
+// 2. ADD new todo
+static Future<void> addTodo(Map<String, dynamic> todo) async {
+  try {
+    await _client.from('student_todos').insert(todo);
+  } catch (e) {
+    print("Error adding todo: $e");
+  }
+}
+
+// 3. UPDATE todo
+static Future<void> updateTodo(int id, Map<String, dynamic> updates) async {
+  try {
+    await _client.from('student_todos').update(updates).eq('id', id);
+  } catch (e) {
+    print("Error updating todo: $e");
+  }
+}
+
+// 4. TOGGLE complete status
+static Future<void> markTodoCompleted(int id, bool isCompleted) async {
+  try {
+    await _client
+        .from('student_todos')
+        .update({'is_completed': isCompleted})
+        .eq('id', id);
+  } catch (e) {
+    print("Error updating todo status: $e");
+  }
+}
+
+// 5. DELETE todo
+static Future<void> deleteTodo(int id) async {
+  try {
+    await _client.from('student_todos').delete().eq('id', id);
+  } catch (e) {
+    print("Error deleting todo: $e");
+  }
+}
 
 }
