@@ -1,4 +1,4 @@
-// student_page.dart - Comprehensive Student Dashboard
+// student_page.dart - Clean Student Dashboard with Menu Drawer
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'navigation_page.dart';
@@ -12,7 +12,13 @@ class MyStudent extends StatefulWidget {
 
 class _MyStudentState extends State<MyStudent> {
   // ================= STUDENT DATA =================
-  Map<String, dynamic> studentInfo = {};
+  String name = '';
+  String studentId = '';
+  String semester = '';
+  String department = '';
+  String email = '';
+  
+  // Other data
   List<Map<String, dynamic>> enrolledCourses = [];
   List<Map<String, dynamic>> attendanceRecords = [];
   List<Map<String, dynamic>> marks = [];
@@ -20,7 +26,6 @@ class _MyStudentState extends State<MyStudent> {
   
   bool isLoading = true;
   bool hasError = false;
-  String errorMessage = '';
 
   @override
   void initState() {
@@ -37,22 +42,35 @@ class _MyStudentState extends State<MyStudent> {
       });
 
       // 1. Get student basic info
-      studentInfo = await SupabaseConnector.getStudent();
-      final studentId = studentInfo['student_id']?.toString() ?? '';
+      final studentData = await SupabaseConnector.getStudent();
+      
+      setState(() {
+        name = studentData['name']?.toString() ?? 'Student Name';
+        studentId = studentData['student_id']?.toString() ?? '';
+        semester = studentData['semester']?.toString() ?? '';
+        department = studentData['department']?.toString() ?? '';
+        email = studentData['email']?.toString() ?? '';
+      });
 
       // 2. Get enrolled courses
-      enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
+      if (studentId.isNotEmpty) {
+        enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
+      }
 
-      // 3. Get attendance records (limited to 5 for dashboard)
-      attendanceRecords = await SupabaseConnector.getAttendance(studentId);
-      if (attendanceRecords.length > 5) {
-        attendanceRecords = attendanceRecords.take(5).toList();
+      // 3. Get attendance records
+      if (studentId.isNotEmpty) {
+        attendanceRecords = await SupabaseConnector.getAttendance(studentId);
+        if (attendanceRecords.length > 5) {
+          attendanceRecords = attendanceRecords.take(5).toList();
+        }
       }
 
       // 4. Get marks
-      marks = await SupabaseConnector.getStudentMarks(studentId);
+      if (studentId.isNotEmpty) {
+        marks = await SupabaseConnector.getStudentMarks(studentId);
+      }
 
-      // 5. Get recent materials from all courses
+      // 5. Get recent materials
       await loadRecentMaterials(enrolledCourses);
 
       setState(() => isLoading = false);
@@ -61,12 +79,10 @@ class _MyStudentState extends State<MyStudent> {
       setState(() {
         isLoading = false;
         hasError = true;
-        errorMessage = error.toString();
       });
     }
   }
 
-  /// Load recent materials from enrolled courses
   Future<void> loadRecentMaterials(List<Map<String, dynamic>> courses) async {
     recentMaterials = [];
     
@@ -74,7 +90,6 @@ class _MyStudentState extends State<MyStudent> {
       final courseCode = course['course_code'];
       final materials = await SupabaseConnector.getCourseMaterials(courseCode);
       if (materials.isNotEmpty) {
-        // Add course name to each material
         final materialsWithCourse = materials.map((material) {
           return {
             ...material,
@@ -87,7 +102,6 @@ class _MyStudentState extends State<MyStudent> {
       }
     }
     
-    // Sort by date and take only 3 most recent
     recentMaterials.sort((a, b) {
       final dateA = a['created_at']?.toString() ?? '';
       final dateB = b['created_at']?.toString() ?? '';
@@ -99,7 +113,6 @@ class _MyStudentState extends State<MyStudent> {
     }
   }
 
-  /// Calculate overall attendance percentage
   double get overallAttendance {
     if (attendanceRecords.isEmpty) return 0.0;
     
@@ -108,10 +121,9 @@ class _MyStudentState extends State<MyStudent> {
         .where((record) => record['status'] == 'Present')
         .length;
     
-    return (presentCount / totalClasses) * 100;
+    return totalClasses > 0 ? (presentCount / totalClasses) * 100 : 0.0;
   }
 
-  /// Calculate average marks
   double get averageMarks {
     if (marks.isEmpty) return 0.0;
     
@@ -119,7 +131,6 @@ class _MyStudentState extends State<MyStudent> {
     int count = 0;
     
     for (var mark in marks) {
-      // Sum all available marks
       List<dynamic> markValues = [
         mark['attendance'] ?? 0,
         mark['assignment'] ?? 0,
@@ -141,208 +152,303 @@ class _MyStudentState extends State<MyStudent> {
     return count > 0 ? total / count : 0.0;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: loadAllStudentData,
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.refresh, color: Colors.white),
+  /// Show simple student details dialog
+  void _showStudentDetails() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Student Details'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDetailRow('Student ID', studentId.isEmpty ? 'Not assigned' : studentId),
+                const Divider(),
+                _buildDetailRow('Full Name', name),
+                const Divider(),
+                _buildDetailRow('Department', department.isEmpty ? 'Not set' : department),
+                const Divider(),
+                _buildDetailRow('Semester', semester.isEmpty ? 'Not set' : semester),
+                const Divider(),
+                _buildDetailRow('Email', email.isEmpty ? 'No email provided' : email),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  @override
+  Widget build(BuildContext context) {
     if (isLoading) {
-      return _buildLoading();
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     if (hasError) {
-      return _buildError();
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'Failed to load data',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: loadAllStudentData,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    return RefreshIndicator(
-      onRefresh: loadAllStudentData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu), // 3-line menu icon
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
+      ),
+      drawer: Drawer(
         child: Column(
           children: [
-            // ================= PROFILE HEADER =================
-            _buildProfileHeader(),
-
-            // ================= QUICK STATS =================
-            _buildQuickStats(),
-
-            // ================= ENROLLED COURSES =================
-            _buildEnrolledCourses(),
-
-            // ================= RECENT ACTIVITIES =================
-            _buildRecentActivities(),
-
-            // ================= QUICK LINKS =================
-            _buildQuickLinks(),
-
-            const SizedBox(height: 30),
+            // Drawer Header with student info
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 50, bottom: 30, left: 20, right: 20),
+              color: Colors.blue,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, size: 35, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    studentId.isEmpty ? 'ID: Not assigned' : 'ID: $studentId',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Drawer Menu Items
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  // Student Details Menu
+                  ListTile(
+                    leading: const Icon(Icons.person, color: Colors.blue),
+                    title: const Text(
+                      'Student Details',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context); // Close drawer
+                      _showStudentDetails(); // Show details dialog
+                    },
+                  ),
+                  
+                  // Settings Menu
+                  ListTile(
+                    leading: const Icon(Icons.settings, color: Colors.grey),
+                    title: const Text(
+                      'Settings',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context); // Close drawer
+                      // Settings page will be added later
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Settings coming soon!'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-    );
-  }
+      body: RefreshIndicator(
+        onRefresh: loadAllStudentData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              // ================= CLEAN PROFILE HEADER =================
+              _buildCleanProfileHeader(),
 
-  Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            'Loading your dashboard...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
+              // ================= QUICK STATS =================
+              _buildQuickStats(),
+
+              // ================= ENROLLED COURSES =================
+              _buildEnrolledCourses(),
+
+              // ================= RECENT ACTIVITIES =================
+              _buildRecentActivities(),
+
+              // ================= QUICK LINKS =================
+              _buildQuickLinks(),
+
+              const SizedBox(height: 30),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              errorMessage,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: loadAllStudentData,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
+  /// Clean profile header - only essential info
+  Widget _buildCleanProfileHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 50, bottom: 30, left: 20, right: 20),
+      padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.blue,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
           // Profile Avatar
           Container(
-            width: 100,
-            height: 100,
+            width: 70,
+            height: 70,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white,
-              border: Border.all(color: Colors.white, width: 3),
+              border: Border.all(color: Colors.white, width: 2),
             ),
             child: const Icon(
               Icons.person,
-              size: 60,
+              size: 40,
               color: Colors.blue,
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(width: 20),
 
-          // Student Name
-          Text(
-            studentInfo['name']?.toString() ?? 'Student Name',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          // Student Name and ID only
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  studentId.isEmpty ? 'ID: Not assigned' : 'ID: $studentId',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 5),
 
-          // Student ID
-          Text(
-            'ID: ${studentInfo['student_id']?.toString() ?? 'N/A'}',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 5),
-
-          // Semester & Department
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildInfoChip(
-                'Semester ${studentInfo['semester']?.toString() ?? 'N/A'}',
-                Icons.school,
+          // Quick info badge - Semester
+          if (semester.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 10),
-              _buildInfoChip(
-                studentInfo['department']?.toString() ?? 'Department',
-                Icons.business,
+              child: Text(
+                'Sem $semester',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoChip(String text, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
             ),
-          ),
         ],
       ),
     );
@@ -353,7 +459,6 @@ class _MyStudentState extends State<MyStudent> {
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          // Courses Stat
           _buildStatCard(
             icon: Icons.school,
             value: enrolledCourses.length.toString(),
@@ -361,8 +466,6 @@ class _MyStudentState extends State<MyStudent> {
             color: Colors.blue,
           ),
           const SizedBox(width: 15),
-
-          // Attendance Stat
           _buildStatCard(
             icon: Icons.percent,
             value: '${overallAttendance.toStringAsFixed(1)}%',
@@ -370,8 +473,6 @@ class _MyStudentState extends State<MyStudent> {
             color: Colors.green,
           ),
           const SizedBox(width: 15),
-
-          // Marks Stat
           _buildStatCard(
             icon: Icons.bar_chart,
             value: averageMarks.toStringAsFixed(1),
@@ -405,25 +506,21 @@ class _MyStudentState extends State<MyStudent> {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 30,
-              color: color,
-            ),
-            const SizedBox(height: 10),
+            Icon(icon, size: 28, color: color),
+            const SizedBox(height: 8),
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: Colors.grey.shade600,
               ),
             ),
@@ -458,7 +555,6 @@ class _MyStudentState extends State<MyStudent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with View All button
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
@@ -487,7 +583,6 @@ class _MyStudentState extends State<MyStudent> {
             ),
           ),
 
-          // Courses List (limited to 3)
           ...enrolledCourses.take(3).map((course) {
             return _buildCourseListItem(course);
           }).toList(),
@@ -519,17 +614,11 @@ class _MyStudentState extends State<MyStudent> {
           color: Colors.blue.shade50,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(
-          Icons.book,
-          color: Colors.blue,
-          size: 24,
-        ),
+        child: const Icon(Icons.book, color: Colors.blue, size: 24),
       ),
       title: Text(
         course['course_name']?.toString() ?? 'Course',
-        style: const TextStyle(
-          fontWeight: FontWeight.w500,
-        ),
+        style: const TextStyle(fontWeight: FontWeight.w500),
       ),
       subtitle: Text(
         course['course_code']?.toString() ?? 'Code',
@@ -550,17 +639,14 @@ class _MyStudentState extends State<MyStudent> {
   Widget _buildRecentActivities() {
     final List<Widget> sections = [];
 
-    // Add attendance section
     if (attendanceRecords.isNotEmpty) {
       sections.add(_buildRecentAttendance());
     }
 
-    // Add materials section
     if (recentMaterials.isNotEmpty) {
       sections.add(_buildRecentMaterials());
     }
 
-    // Add marks section
     if (marks.isNotEmpty) {
       sections.add(_buildRecentMarks());
     }
@@ -731,7 +817,7 @@ class _MyStudentState extends State<MyStudent> {
 
     return ListTile(
       leading: Icon(icon, color: color),
-      title: Text(title),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('$course • $date'),
       trailing: const Icon(Icons.download, color: Colors.blue),
       onTap: () {
@@ -816,10 +902,7 @@ class _MyStudentState extends State<MyStudent> {
           color: Colors.orange.shade50,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(
-          Icons.grade,
-          color: Colors.orange,
-        ),
+        child: const Icon(Icons.grade, color: Colors.orange),
       ),
       title: Text(course),
       subtitle: Text('Total Marks: $total'),
@@ -931,9 +1014,7 @@ class _MyStudentState extends State<MyStudent> {
             const SizedBox(height: 10),
             Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -976,9 +1057,7 @@ class _MyStudentState extends State<MyStudent> {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(color: Colors.grey.shade500),
           ),
         ],
       ),
