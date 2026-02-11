@@ -1,4 +1,4 @@
-// admin_page.dart - Part 4: Data Lists & Supabase Integration
+// admin_page.dart - Part 5: Stats Cards & Search Bar
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,6 +24,9 @@ class _MyAdminState extends State<MyAdmin> {
   String errorMessage = '';
   String activeTab = 'students';
   
+  // Search controller
+  final TextEditingController _searchController = TextEditingController();
+  
   static final SupabaseClient _client = Supabase.instance.client;
 
   @override
@@ -39,12 +42,10 @@ class _MyAdminState extends State<MyAdmin> {
         hasError = false;
       });
 
-      // Load data from Supabase
       try {
         final response = await _client.from('students').select();
         students = List<Map<String, dynamic>>.from(response);
       } catch (e) {
-        print("Error loading students: $e");
         students = [];
       }
 
@@ -52,7 +53,6 @@ class _MyAdminState extends State<MyAdmin> {
         final response = await _client.from('teachers').select();
         teachers = List<Map<String, dynamic>>.from(response);
       } catch (e) {
-        print("Error loading teachers: $e");
         teachers = [];
       }
 
@@ -60,7 +60,6 @@ class _MyAdminState extends State<MyAdmin> {
         final response = await _client.from('courses').select();
         courses = List<Map<String, dynamic>>.from(response);
       } catch (e) {
-        print("Error loading courses: $e");
         courses = [];
       }
 
@@ -68,13 +67,11 @@ class _MyAdminState extends State<MyAdmin> {
         final response = await _client.from('semesters').select();
         semesters = List<Map<String, dynamic>>.from(response);
       } catch (e) {
-        print("Error loading semesters: $e");
         semesters = [];
       }
 
       setState(() => isLoading = false);
     } catch (error) {
-      print("Error loading admin data: $error");
       setState(() {
         isLoading = false;
         hasError = true;
@@ -93,36 +90,19 @@ class _MyAdminState extends State<MyAdmin> {
 
   Widget _buildBody() {
     if (isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 20),
-            Text('Loading admin dashboard...', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-          ],
-        ),
-      );
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('Loading admin dashboard...', style: TextStyle(fontSize: 16, color: Colors.grey.shade600))]));
     }
 
     if (hasError) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 80, color: Colors.red),
-            const SizedBox(height: 20),
-            const Text('Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(onPressed: loadAllAdminData, icon: const Icon(Icons.refresh), label: const Text('Try Again')),
-          ],
-        ),
-      );
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.error_outline, size: 80, color: Colors.red),
+        const SizedBox(height: 20),
+        const Text('Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+        const SizedBox(height: 10),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text(errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(onPressed: loadAllAdminData, icon: const Icon(Icons.refresh), label: const Text('Try Again')),
+      ]));
     }
 
     return RefreshIndicator(
@@ -130,13 +110,84 @@ class _MyAdminState extends State<MyAdmin> {
       child: Column(
         children: [
           _buildAdminHeader(),
+          _buildSearchBar(),
+          _buildStatsCards(),
           _buildTabBar(),
           Expanded(
             child: Center(
-              child: Text('${_getTabTitle()} loaded: ${_getDataCount()}'),
+              child: Text('${_getTabTitle()}: ${_getDataCount()}', style: const TextStyle(fontSize: 18)),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+      ),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search ${activeTab}...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        ),
+        onChanged: (value) => setState(() {}),
+      ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          _buildStatCard(icon: Icons.person, value: students.length.toString(), label: 'Students', color: Colors.blue),
+          const SizedBox(width: 12),
+          _buildStatCard(icon: Icons.person_outline, value: teachers.length.toString(), label: 'Teachers', color: Colors.green),
+          const SizedBox(width: 12),
+          _buildStatCard(icon: Icons.book, value: courses.length.toString(), label: 'Courses', color: Colors.orange),
+          const SizedBox(width: 12),
+          _buildStatCard(icon: Icons.school, value: enrolledCourses.length.toString(), label: 'Enrollments', color: Colors.purple),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({required IconData icon, required String value, required String label, required Color color}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 24, color: color),
+            const SizedBox(height: 8),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ],
+        ),
       ),
     );
   }
@@ -183,7 +234,7 @@ class _MyAdminState extends State<MyAdmin> {
 
   Widget _buildTabBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+      margin: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       padding: const EdgeInsets.symmetric(vertical: 5),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))]),
       child: Row(children: [
@@ -214,6 +265,7 @@ class _MyAdminState extends State<MyAdmin> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     super.dispose();
   }
 }
