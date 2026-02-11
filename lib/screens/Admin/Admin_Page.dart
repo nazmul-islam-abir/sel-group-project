@@ -1,4 +1,4 @@
-// admin_page.dart - Part 5: Stats Cards & Search Bar
+// admin_page.dart - Part 6: Students List View
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,9 +24,7 @@ class _MyAdminState extends State<MyAdmin> {
   String errorMessage = '';
   String activeTab = 'students';
   
-  // Search controller
   final TextEditingController _searchController = TextEditingController();
-  
   static final SupabaseClient _client = Supabase.instance.client;
 
   @override
@@ -37,46 +35,23 @@ class _MyAdminState extends State<MyAdmin> {
 
   Future<void> loadAllAdminData() async {
     try {
-      setState(() {
-        isLoading = true;
-        hasError = false;
-      });
+      setState(() { isLoading = true; hasError = false; });
 
-      try {
-        final response = await _client.from('students').select();
-        students = List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        students = [];
-      }
-
-      try {
-        final response = await _client.from('teachers').select();
-        teachers = List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        teachers = [];
-      }
-
-      try {
-        final response = await _client.from('courses').select();
-        courses = List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        courses = [];
-      }
-
-      try {
-        final response = await _client.from('semesters').select();
-        semesters = List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        semesters = [];
-      }
+      final studentsRes = await _client.from('students').select();
+      students = List<Map<String, dynamic>>.from(studentsRes);
+      
+      final teachersRes = await _client.from('teachers').select();
+      teachers = List<Map<String, dynamic>>.from(teachersRes);
+      
+      final coursesRes = await _client.from('courses').select();
+      courses = List<Map<String, dynamic>>.from(coursesRes);
+      
+      final semestersRes = await _client.from('semesters').select();
+      semesters = List<Map<String, dynamic>>.from(semestersRes);
 
       setState(() => isLoading = false);
     } catch (error) {
-      setState(() {
-        isLoading = false;
-        hasError = true;
-        errorMessage = error.toString();
-      });
+      setState(() { isLoading = false; hasError = true; errorMessage = error.toString(); });
     }
   }
 
@@ -89,21 +64,8 @@ class _MyAdminState extends State<MyAdmin> {
   }
 
   Widget _buildBody() {
-    if (isLoading) {
-      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('Loading admin dashboard...', style: TextStyle(fontSize: 16, color: Colors.grey.shade600))]));
-    }
-
-    if (hasError) {
-      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.error_outline, size: 80, color: Colors.red),
-        const SizedBox(height: 20),
-        const Text('Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-        const SizedBox(height: 10),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text(errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(onPressed: loadAllAdminData, icon: const Icon(Icons.refresh), label: const Text('Try Again')),
-      ]));
-    }
+    if (isLoading) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('Loading...', style: TextStyle(fontSize: 16, color: Colors.grey.shade600))]));
+    if (hasError) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.error_outline, size: 80, color: Colors.red), const SizedBox(height: 20), const Text('Error loading data'), ElevatedButton.icon(onPressed: loadAllAdminData, icon: const Icon(Icons.refresh), label: const Text('Try Again'))]));
 
     return RefreshIndicator(
       onRefresh: loadAllAdminData,
@@ -114,8 +76,9 @@ class _MyAdminState extends State<MyAdmin> {
           _buildStatsCards(),
           _buildTabBar(),
           Expanded(
-            child: Center(
-              child: Text('${_getTabTitle()}: ${_getDataCount()}', style: const TextStyle(fontSize: 18)),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: _buildActiveContent(),
             ),
           ),
         ],
@@ -123,71 +86,77 @@ class _MyAdminState extends State<MyAdmin> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildActiveContent() {
+    switch (activeTab) {
+      case 'students':
+        return _buildStudentsList();
+      default:
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Text('${_getTabTitle()} section coming soon', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+          ),
+        );
+    }
+  }
+
+  Widget _buildStudentsList() {
+    if (students.isEmpty) {
+      return _buildEmptySection(
+        icon: Icons.people,
+        title: 'No Students Found',
+        subtitle: 'Add your first student',
+      );
+    }
+
+    var filteredStudents = students;
+    if (_searchController.text.isNotEmpty) {
+      filteredStudents = students.where((student) {
+        final searchTerm = _searchController.text.toLowerCase();
+        return (student['name']?.toString().toLowerCase().contains(searchTerm) ?? false) ||
+               (student['student_id']?.toString().toLowerCase().contains(searchTerm) ?? false);
+      }).toList();
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        ...filteredStudents.map((student) => _buildStudentCard(student)).toList(),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildStudentCard(Map<String, dynamic> student) {
     return Container(
-      margin: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 15),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
       ),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search ${activeTab}...',
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {});
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        ),
-        onChanged: (value) => setState(() {}),
-      ),
-    );
-  }
-
-  Widget _buildStatsCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          _buildStatCard(icon: Icons.person, value: students.length.toString(), label: 'Students', color: Colors.blue),
-          const SizedBox(width: 12),
-          _buildStatCard(icon: Icons.person_outline, value: teachers.length.toString(), label: 'Teachers', color: Colors.green),
-          const SizedBox(width: 12),
-          _buildStatCard(icon: Icons.book, value: courses.length.toString(), label: 'Courses', color: Colors.orange),
-          const SizedBox(width: 12),
-          _buildStatCard(icon: Icons.school, value: enrolledCourses.length.toString(), label: 'Enrollments', color: Colors.purple),
+          Container(
+            width: 50, height: 50,
+            decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+            child: const Icon(Icons.person, color: Colors.blue, size: 30),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(student['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text('ID: ${student['student_id'] ?? 'N/A'}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                if (student['email'] != null)
+                  Text(student['email'], style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({required IconData icon, required String value, required String label, required Color color}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 24, color: color),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          ],
-        ),
       ),
     );
   }
@@ -203,15 +172,51 @@ class _MyAdminState extends State<MyAdmin> {
     }
   }
 
-  String _getDataCount() {
-    switch (activeTab) {
-      case 'students': return students.length.toString();
-      case 'teachers': return teachers.length.toString();
-      case 'courses': return courses.length.toString();
-      case 'semesters': return semesters.length.toString();
-      case 'enrollments': return enrolledCourses.length.toString();
-      default: return '0';
-    }
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search ${activeTab}...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          suffixIcon: _searchController.text.isNotEmpty ? IconButton(icon: const Icon(Icons.clear, color: Colors.grey), onPressed: () { _searchController.clear(); setState(() {}); }) : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        ),
+        onChanged: (value) => setState(() {}),
+      ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(children: [
+        _buildStatCard(icon: Icons.person, value: students.length.toString(), label: 'Students', color: Colors.blue),
+        const SizedBox(width: 12),
+        _buildStatCard(icon: Icons.person_outline, value: teachers.length.toString(), label: 'Teachers', color: Colors.green),
+        const SizedBox(width: 12),
+        _buildStatCard(icon: Icons.book, value: courses.length.toString(), label: 'Courses', color: Colors.orange),
+        const SizedBox(width: 12),
+        _buildStatCard(icon: Icons.school, value: enrolledCourses.length.toString(), label: 'Enrollments', color: Colors.purple),
+      ]),
+    );
+  }
+
+  Widget _buildStatCard({required IconData icon, required String value, required String label, required Color color}) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))]),
+      child: Column(children: [
+        Icon(icon, size: 24, color: color),
+        const SizedBox(height: 8),
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      ]),
+    ));
   }
 
   Widget _buildAdminHeader() {
@@ -261,6 +266,21 @@ class _MyAdminState extends State<MyAdmin> {
         ]),
       ),
     ));
+  }
+
+  Widget _buildEmptySection({required IconData icon, required String title, required String subtitle}) {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]),
+      child: Column(children: [
+        Icon(icon, size: 60, color: Colors.grey.shade400),
+        const SizedBox(height: 15),
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        const SizedBox(height: 5),
+        Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500)),
+      ]),
+    );
   }
 
   @override
