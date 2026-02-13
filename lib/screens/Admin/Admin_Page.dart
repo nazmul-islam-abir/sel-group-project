@@ -1,4 +1,4 @@
-//  Complete CRUD (up to sem)
+// Complete CRUD (up to sem) - Updated with requested changes
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,12 +11,10 @@ class MyAdmin extends StatefulWidget {
 }
 
 class _MyAdminState extends State<MyAdmin> {
-  //  ADMIN DATA LISTS 
+  // ADMIN DATA LISTS 
   List<Map<String, dynamic>> students = [];
   List<Map<String, dynamic>> teachers = [];
   List<Map<String, dynamic>> courses = [];
-  List<Map<String, dynamic>> semesters = [];
-  List<Map<String, dynamic>> enrolledCourses = [];
   
   //UI STATE
   bool isLoading = true;
@@ -28,29 +26,26 @@ class _MyAdminState extends State<MyAdmin> {
   bool showAddStudentForm = false;
   bool showAddTeacherForm = false;
   bool showAddCourseForm = false;
-  bool showAddSemesterForm = false;
   
   //STUDENT CONTROLLERS
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _studentNameController = TextEditingController();
   final TextEditingController _studentEmailController = TextEditingController();
   final TextEditingController _studentDepartmentController = TextEditingController();
+  final TextEditingController _studentSemesterController = TextEditingController();
   
-  //TEACHER CONTROLLERS
+  //TEACHER CONTROLLERS - UPDATED with new fields
   final TextEditingController _teacherIdController = TextEditingController();
   final TextEditingController _teacherNameController = TextEditingController();
   final TextEditingController _teacherEmailController = TextEditingController();
   final TextEditingController _teacherDepartmentController = TextEditingController();
+  final TextEditingController _teacherDesignationController = TextEditingController();
+  final TextEditingController _teacherPhoneController = TextEditingController();
   
   //COURSE CONTROLLERS
   final TextEditingController _courseCodeController = TextEditingController();
   final TextEditingController _courseNameController = TextEditingController();
   final TextEditingController _courseCreditsController = TextEditingController();
-  
-  //SEMESTER CONTROLLERS
-  final TextEditingController _semesterIdController = TextEditingController();
-  final TextEditingController _semesterNameController = TextEditingController();
-  final TextEditingController _semesterYearController = TextEditingController();
   
   //SEARCH CONTROLLER
   final TextEditingController _searchController = TextEditingController();
@@ -64,7 +59,7 @@ class _MyAdminState extends State<MyAdmin> {
     loadAllAdminData();
   }
 
-  ///  Load ALL admin data
+  /// Load ALL admin data
   Future<void> loadAllAdminData() async {
     try {
       setState(() {
@@ -73,7 +68,6 @@ class _MyAdminState extends State<MyAdmin> {
         students.clear();
         teachers.clear();
         courses.clear();
-        semesters.clear();
       });
 
       // Load students
@@ -99,14 +93,6 @@ class _MyAdminState extends State<MyAdmin> {
       } catch (e) {
         print("Error loading courses: $e");
       }
-      
-      // Load semesters
-      try {
-        final response = await _client.from('semesters').select();
-        semesters = List<Map<String, dynamic>>.from(response);
-      } catch (e) {
-        print("Error loading semesters: $e");
-      }
 
       setState(() => isLoading = false);
     } catch (error) {
@@ -131,7 +117,7 @@ class _MyAdminState extends State<MyAdmin> {
         'name': _studentNameController.text,
         'email': _studentEmailController.text,
         'department': _studentDepartmentController.text,
-        'semester': 'Spring2025',
+        'semester': _studentSemesterController.text.isEmpty ? 'Spring2025' : _studentSemesterController.text,
       });
       await loadAllAdminData();
       _clearStudentControllers();
@@ -152,7 +138,7 @@ class _MyAdminState extends State<MyAdmin> {
     }
   }
 
-  //TEACHER OPERATIONS 
+  //TEACHER OPERATIONS - UPDATED with new fields
   Future<void> addTeacher() async {
     if (_teacherNameController.text.isEmpty || _teacherIdController.text.isEmpty) {
       _showSnackBar('Name and ID are required', Colors.orange);
@@ -165,6 +151,8 @@ class _MyAdminState extends State<MyAdmin> {
         'name': _teacherNameController.text,
         'email': _teacherEmailController.text,
         'department': _teacherDepartmentController.text,
+        'designation': _teacherDesignationController.text,
+        'phone': _teacherPhoneController.text,
       });
       await loadAllAdminData();
       _clearTeacherControllers();
@@ -217,46 +205,13 @@ class _MyAdminState extends State<MyAdmin> {
     }
   }
 
-  //SEMESTER OPERATIONS
-  Future<void> addSemester() async {
-    if (_semesterNameController.text.isEmpty) {
-      _showSnackBar('Semester name is required', Colors.orange);
-      return;
-    }
-
-    try {
-      await _client.from('semesters').insert({
-        'semester_id': _semesterIdController.text.isEmpty 
-            ? DateTime.now().millisecondsSinceEpoch.toString()
-            : _semesterIdController.text,
-        'semester_name': _semesterNameController.text,
-        'year': _semesterYearController.text,
-      });
-      await loadAllAdminData();
-      _clearSemesterControllers();
-      setState(() => showAddSemesterForm = false);
-      _showSnackBar('Semester added successfully', Colors.green);
-    } catch (error) {
-      _showSnackBar('Error: $error', Colors.red);
-    }
-  }
-
-  Future<void> deleteSemester(String id) async {
-    try {
-      await _client.from('semesters').delete().eq('semester_id', id);
-      await loadAllAdminData();
-      _showSnackBar('Semester deleted successfully', Colors.green);
-    } catch (error) {
-      _showSnackBar('Error deleting semester: $error', Colors.red);
-    }
-  }
-
   // CLEAR CONTROLLERS 
   void _clearStudentControllers() {
     _studentNameController.clear();
     _studentEmailController.clear();
     _studentDepartmentController.clear();
     _studentIdController.clear();
+    _studentSemesterController.clear();
   }
 
   void _clearTeacherControllers() {
@@ -264,18 +219,14 @@ class _MyAdminState extends State<MyAdmin> {
     _teacherEmailController.clear();
     _teacherDepartmentController.clear();
     _teacherIdController.clear();
+    _teacherDesignationController.clear();
+    _teacherPhoneController.clear();
   }
 
   void _clearCourseControllers() {
     _courseCodeController.clear();
     _courseNameController.clear();
     _courseCreditsController.clear();
-  }
-
-  void _clearSemesterControllers() {
-    _semesterNameController.clear();
-    _semesterYearController.clear();
-    _semesterIdController.clear();
   }
 
   //DELETE CONFIRMATION
@@ -294,7 +245,6 @@ class _MyAdminState extends State<MyAdmin> {
                 case 'student': deleteStudent(id); break;
                 case 'teacher': deleteTeacher(id); break;
                 case 'course': deleteCourse(id); break;
-                case 'semester': deleteSemester(id); break;
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -344,10 +294,6 @@ class _MyAdminState extends State<MyAdmin> {
         label = 'Add Course';
         color = Colors.orange;
         break;
-      case 'semesters':
-        label = 'Add Semester';
-        color = Colors.purple;
-        break;
       default:
         return Container();
     }
@@ -363,9 +309,6 @@ class _MyAdminState extends State<MyAdmin> {
             break;
           case 'courses':
             setState(() => showAddCourseForm = true);
-            break;
-          case 'semesters':
-            setState(() => showAddSemesterForm = true);
             break;
         }
       },
@@ -462,7 +405,7 @@ class _MyAdminState extends State<MyAdmin> {
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text('Complete CRUD Operations', style: TextStyle(color: Colors.white, fontSize: 14)),
+            child: const Text('Management Dashboard', style: TextStyle(color: Colors.white, fontSize: 14)),
           ),
         ],
       ),
@@ -517,8 +460,6 @@ class _MyAdminState extends State<MyAdmin> {
           _buildStatCard(Icons.person_outline, teachers.length.toString(), 'Teachers', Colors.green),
           const SizedBox(width: 12),
           _buildStatCard(Icons.book, courses.length.toString(), 'Courses', Colors.orange),
-          const SizedBox(width: 12),
-          _buildStatCard(Icons.school, enrolledCourses.length.toString(), 'Enrollments', Colors.purple),
         ],
       ),
     );
@@ -572,8 +513,6 @@ class _MyAdminState extends State<MyAdmin> {
           _buildTab('students', Icons.people),
           _buildTab('teachers', Icons.person_outline),
           _buildTab('courses', Icons.book),
-          _buildTab('semesters', Icons.calendar_month),
-          _buildTab('enrollments', Icons.how_to_reg),
         ],
       ),
     );
@@ -589,7 +528,6 @@ class _MyAdminState extends State<MyAdmin> {
             showAddStudentForm = false;
             showAddTeacherForm = false;
             showAddCourseForm = false;
-            showAddSemesterForm = false;
           });
         },
         child: Container(
@@ -623,15 +561,12 @@ class _MyAdminState extends State<MyAdmin> {
     if (showAddStudentForm) return _buildAddStudentForm();
     if (showAddTeacherForm) return _buildAddTeacherForm();
     if (showAddCourseForm) return _buildAddCourseForm();
-    if (showAddSemesterForm) return _buildAddSemesterForm();
     
     // Show lists
     switch (activeTab) {
       case 'students': return _buildStudentsList();
       case 'teachers': return _buildTeachersList();
       case 'courses': return _buildCoursesList();
-      case 'semesters': return _buildSemestersList();
-      case 'enrollments': return _buildComingSoon('Enrollments');
       default: return _buildStudentsList();
     }
   }
@@ -663,19 +598,15 @@ class _MyAdminState extends State<MyAdmin> {
             ],
           ),
           const SizedBox(height: 20),
-          TextField(controller: _studentIdController, decoration: const InputDecoration(labelText: 'Student ID', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
+          TextField(controller: _studentIdController, decoration: const InputDecoration(labelText: 'Student ID *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
           const SizedBox(height: 15),
-          TextField(controller: _studentNameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
+          TextField(controller: _studentNameController, decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
           const SizedBox(height: 15),
           TextField(controller: _studentEmailController, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
           const SizedBox(height: 15),
           TextField(controller: _studentDepartmentController, decoration: const InputDecoration(labelText: 'Department', border: OutlineInputBorder(), prefixIcon: Icon(Icons.business))),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
-            child: Row(children: [const Icon(Icons.info, color: Colors.blue, size: 20), const SizedBox(width: 8), Expanded(child: Text('Semester: Spring2025', style: TextStyle(color: Colors.blue.shade700, fontSize: 13)))]),
-          ),
+          const SizedBox(height: 15),
+          TextField(controller: _studentSemesterController, decoration: const InputDecoration(labelText: 'Semester (e.g., Spring2025)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_month))),
           const SizedBox(height: 20),
           Row(children: [
             Expanded(child: OutlinedButton(onPressed: () { setState(() { showAddStudentForm = false; _clearStudentControllers(); }); }, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Cancel'))),
@@ -702,31 +633,37 @@ class _MyAdminState extends State<MyAdmin> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Add New Teacher', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() { showAddTeacherForm = false; _clearTeacherControllers(); })),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(controller: _teacherIdController, decoration: const InputDecoration(labelText: 'Teacher ID', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
-          const SizedBox(height: 15),
-          TextField(controller: _teacherNameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
-          const SizedBox(height: 15),
-          TextField(controller: _teacherEmailController, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
-          const SizedBox(height: 15),
-          TextField(controller: _teacherDepartmentController, decoration: const InputDecoration(labelText: 'Department', border: OutlineInputBorder(), prefixIcon: Icon(Icons.business))),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: OutlinedButton(onPressed: () { setState(() { showAddTeacherForm = false; _clearTeacherControllers(); }); }, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Cancel'))),
-            const SizedBox(width: 15),
-            Expanded(child: ElevatedButton(onPressed: addTeacher, style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Add Teacher', style: TextStyle(color: Colors.white)))),
-          ]),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Add New Teacher', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() { showAddTeacherForm = false; _clearTeacherControllers(); })),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextField(controller: _teacherIdController, decoration: const InputDecoration(labelText: 'Teacher ID *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
+            const SizedBox(height: 15),
+            TextField(controller: _teacherNameController, decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
+            const SizedBox(height: 15),
+            TextField(controller: _teacherEmailController, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+            const SizedBox(height: 15),
+            TextField(controller: _teacherDepartmentController, decoration: const InputDecoration(labelText: 'Department', border: OutlineInputBorder(), prefixIcon: Icon(Icons.business))),
+            const SizedBox(height: 15),
+            TextField(controller: _teacherDesignationController, decoration: const InputDecoration(labelText: 'Designation', border: OutlineInputBorder(), prefixIcon: Icon(Icons.work))),
+            const SizedBox(height: 15),
+            TextField(controller: _teacherPhoneController, decoration: const InputDecoration(labelText: 'Phone Number', border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone))),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: OutlinedButton(onPressed: () { setState(() { showAddTeacherForm = false; _clearTeacherControllers(); }); }, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Cancel'))),
+              const SizedBox(width: 15),
+              Expanded(child: ElevatedButton(onPressed: addTeacher, style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Add Teacher', style: TextStyle(color: Colors.white)))),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -757,9 +694,9 @@ class _MyAdminState extends State<MyAdmin> {
             ],
           ),
           const SizedBox(height: 20),
-          TextField(controller: _courseCodeController, decoration: const InputDecoration(labelText: 'Course Code', border: OutlineInputBorder(), prefixIcon: Icon(Icons.code))),
+          TextField(controller: _courseCodeController, decoration: const InputDecoration(labelText: 'Course Code *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.code))),
           const SizedBox(height: 15),
-          TextField(controller: _courseNameController, decoration: const InputDecoration(labelText: 'Course Name', border: OutlineInputBorder(), prefixIcon: Icon(Icons.book))),
+          TextField(controller: _courseNameController, decoration: const InputDecoration(labelText: 'Course Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.book))),
           const SizedBox(height: 15),
           TextField(controller: _courseCreditsController, decoration: const InputDecoration(labelText: 'Credits', border: OutlineInputBorder(), prefixIcon: Icon(Icons.grade)), keyboardType: TextInputType.number),
           const SizedBox(height: 20),
@@ -767,48 +704,6 @@ class _MyAdminState extends State<MyAdmin> {
             Expanded(child: OutlinedButton(onPressed: () { setState(() { showAddCourseForm = false; _clearCourseControllers(); }); }, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Cancel'))),
             const SizedBox(width: 15),
             Expanded(child: ElevatedButton(onPressed: addCourse, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Add Course', style: TextStyle(color: Colors.white)))),
-          ]),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddSemesterForm() {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Add New Semester', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() { showAddSemesterForm = false; _clearSemesterControllers(); })),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(controller: _semesterIdController, decoration: const InputDecoration(labelText: 'Semester ID (Optional)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
-          const SizedBox(height: 15),
-          TextField(controller: _semesterNameController, decoration: const InputDecoration(labelText: 'Semester Name', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_month))),
-          const SizedBox(height: 15),
-          TextField(controller: _semesterYearController, decoration: const InputDecoration(labelText: 'Year', border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)), keyboardType: TextInputType.number),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: OutlinedButton(onPressed: () { setState(() { showAddSemesterForm = false; _clearSemesterControllers(); }); }, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Cancel'))),
-            const SizedBox(width: 15),
-            Expanded(child: ElevatedButton(onPressed: addSemester, style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('Add Semester', style: TextStyle(color: Colors.white)))),
           ]),
         ],
       ),
@@ -824,88 +719,26 @@ class _MyAdminState extends State<MyAdmin> {
 
   Widget _buildStudentsList() {
     if (students.isEmpty) return _buildEmptySection(Icons.people, 'No Students Found', 'Click the + button to add your first student');
-    final filtered = _filterList(students, ['name', 'student_id', 'department']);
+    final filtered = _filterList(students, ['name', 'student_id', 'department', 'email']);
     if (filtered.isEmpty) return _buildEmptySection(Icons.search_off, 'No Results Found', 'Try searching with different keywords');
-    return Column(children: [...filtered.map((e) => _buildStudentCard(e)).toList(), const SizedBox(height: 20)]);
+    
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        ...filtered.map((student) => _buildStudentCard(student)).toList(),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Showing ${filtered.length} of ${students.length} students',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
-    return _buildCard(
-      student: student,
-      idField: 'student_id',
-      nameField: 'name',
-      icon: Icons.person,
-      color: Colors.blue,
-      type: 'student',
-      subtitle: 'ID: ${student['student_id'] ?? 'N/A'}',
-      extra: student['semester'] != null ? 'Semester: ${student['semester']}' : null,
-    );
-  }
-
-  Widget _buildTeachersList() {
-    if (teachers.isEmpty) return _buildEmptySection(Icons.person_outline, 'No Teachers Found', 'Click the + button to add your first teacher');
-    return Column(children: [...teachers.map((e) => _buildTeacherCard(e)).toList(), const SizedBox(height: 20)]);
-  }
-
-  Widget _buildTeacherCard(Map<String, dynamic> teacher) {
-    return _buildCard(
-      student: teacher,
-      idField: 'teacher_id',
-      nameField: 'name',
-      icon: Icons.person_outline,
-      color: Colors.green,
-      type: 'teacher',
-      subtitle: 'ID: ${teacher['teacher_id'] ?? 'N/A'}',
-      extra: teacher['department'] != null ? teacher['department'] : null,
-    );
-  }
-
-  Widget _buildCoursesList() {
-    if (courses.isEmpty) return _buildEmptySection(Icons.book, 'No Courses Found', 'Click the + button to add your first course');
-    return Column(children: [...courses.map((e) => _buildCourseCard(e)).toList(), const SizedBox(height: 20)]);
-  }
-
-  Widget _buildCourseCard(Map<String, dynamic> course) {
-    return _buildCard(
-      student: course,
-      idField: 'course_code',
-      nameField: 'course_name',
-      icon: Icons.book,
-      color: Colors.orange,
-      type: 'course',
-      subtitle: 'Code: ${course['course_code'] ?? 'N/A'}',
-      extra: 'Credits: ${course['credits'] ?? 3}',
-    );
-  }
-
-  Widget _buildSemestersList() {
-    if (semesters.isEmpty) return _buildEmptySection(Icons.calendar_month, 'No Semesters Found', 'Click the + button to add your first semester');
-    return Column(children: [...semesters.map((e) => _buildSemesterCard(e)).toList(), const SizedBox(height: 20)]);
-  }
-
-  Widget _buildSemesterCard(Map<String, dynamic> semester) {
-    return _buildCard(
-      student: semester,
-      idField: 'semester_id',
-      nameField: 'semester_name',
-      icon: Icons.calendar_month,
-      color: Colors.purple,
-      type: 'semester',
-      subtitle: 'Year: ${semester['year'] ?? 'N/A'}',
-      extra: 'ID: ${semester['semester_id'] ?? 'N/A'}',
-    );
-  }
-
-  Widget _buildCard({
-    required Map<String, dynamic> student,
-    required String idField,
-    required String nameField,
-    required IconData icon,
-    required Color color,
-    required String type,
-    required String subtitle,
-    String? extra,
-  }) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 15),
       padding: const EdgeInsets.all(15),
@@ -926,27 +759,30 @@ class _MyAdminState extends State<MyAdmin> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: Colors.blue.shade50,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 30),
+            child: const Icon(Icons.person, color: Colors.blue, size: 30),
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(student[nameField] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(student['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                if (extra != null)
-                  Text(extra, style: TextStyle(fontSize: 12, color: color.withOpacity(0.8))),
+                Text('ID: ${student['student_id'] ?? 'N/A'}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                if (student['email'] != null && student['email'].toString().isNotEmpty)
+                  Text(student['email'], style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                if (student['department'] != null && student['department'].toString().isNotEmpty)
+                  Text('Dept: ${student['department']}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                Text('Semester: ${student['semester'] ?? 'Spring2025'}', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
               ],
             ),
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (_) => _showDeleteConfirmation(type, student[idField]),
+            onSelected: (_) => _showDeleteConfirmation('student', student['student_id']),
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'delete',
@@ -965,28 +801,164 @@ class _MyAdminState extends State<MyAdmin> {
     );
   }
 
-  Widget _buildComingSoon(String feature) {
+  Widget _buildTeachersList() {
+    if (teachers.isEmpty) return _buildEmptySection(Icons.person_outline, 'No Teachers Found', 'Click the + button to add your first teacher');
+    
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        ...teachers.map((teacher) => _buildTeacherCard(teacher)).toList(),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Total: ${teachers.length} teachers',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeacherCard(Map<String, dynamic> teacher) {
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(40),
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 15),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          Icon(Icons.build_circle, size: 80, color: Colors.grey.shade400),
-          const SizedBox(height: 20),
-          Text('$feature Management', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
-          const SizedBox(height: 10),
-          Text('Coming soon!', style: TextStyle(fontSize: 18, color: Colors.blue.shade400, fontWeight: FontWeight.w500)),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person_outline, color: Colors.green, size: 30),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(teacher['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text('ID: ${teacher['teacher_id'] ?? 'N/A'}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                if (teacher['designation'] != null && teacher['designation'].toString().isNotEmpty)
+                  Text(teacher['designation'], style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                if (teacher['department'] != null && teacher['department'].toString().isNotEmpty)
+                  Text('Dept: ${teacher['department']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                if (teacher['email'] != null && teacher['email'].toString().isNotEmpty)
+                  Text(teacher['email'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                if (teacher['phone'] != null && teacher['phone'].toString().isNotEmpty)
+                  Text('📞 ${teacher['phone']}', style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (_) => _showDeleteConfirmation('teacher', teacher['teacher_id']),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text('Delete', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoursesList() {
+    if (courses.isEmpty) return _buildEmptySection(Icons.book, 'No Courses Found', 'Click the + button to add your first course');
+    
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        ...courses.map((course) => _buildCourseCard(course)).toList(),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Total: ${courses.length} courses',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCourseCard(Map<String, dynamic> course) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 15),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.book, color: Colors.orange, size: 30),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(course['course_code'] ?? 'No Code', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(course['course_name'] ?? 'Unknown', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                Text('Credits: ${course['credits'] ?? 3}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (_) => _showDeleteConfirmation('course', course['course_code']),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text('Delete', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1026,16 +998,16 @@ class _MyAdminState extends State<MyAdmin> {
     _studentNameController.dispose();
     _studentEmailController.dispose();
     _studentDepartmentController.dispose();
+    _studentSemesterController.dispose();
     _teacherIdController.dispose();
     _teacherNameController.dispose();
     _teacherEmailController.dispose();
     _teacherDepartmentController.dispose();
+    _teacherDesignationController.dispose();
+    _teacherPhoneController.dispose();
     _courseCodeController.dispose();
     _courseNameController.dispose();
     _courseCreditsController.dispose();
-    _semesterIdController.dispose();
-    _semesterNameController.dispose();
-    _semesterYearController.dispose();
     super.dispose();
   }
 }
