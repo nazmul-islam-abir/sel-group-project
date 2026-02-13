@@ -130,7 +130,7 @@ class _MyStudentState extends State<MyStudent> {
       ];
       
       double courseTotal = markValues
-          .where((value) => value is num)
+          .whereType<num>()
           .map((value) => value.toDouble())
           .fold(0.0, (sum, value) => sum + value);
       
@@ -490,7 +490,7 @@ class _MyStudentState extends State<MyStudent> {
           // Courses List (limited to 3)
           ...enrolledCourses.take(3).map((course) {
             return _buildCourseListItem(course);
-          }).toList(),
+          }),
 
           if (enrolledCourses.length > 3)
             Padding(
@@ -606,7 +606,7 @@ class _MyStudentState extends State<MyStudent> {
 
           ...attendanceRecords.map((record) {
             return _buildAttendanceItem(record);
-          }).toList(),
+          }),
 
           Padding(
             padding: const EdgeInsets.all(16),
@@ -700,7 +700,7 @@ class _MyStudentState extends State<MyStudent> {
 
           ...recentMaterials.map((material) {
             return _buildMaterialItem(material);
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -775,7 +775,7 @@ class _MyStudentState extends State<MyStudent> {
 
           ...marks.take(2).map((mark) {
             return _buildMarkItem(mark);
-          }).toList(),
+          }),
 
           Padding(
             padding: const EdgeInsets.all(16),
