@@ -1,10 +1,8 @@
-// teacher_navigation_page.dart
 import 'package:flutter/material.dart';
+import 'teacher_courses_page.dart';
 
 class TeacherNavigationPage extends StatefulWidget {
-  final int? initialIndex; // Make it nullable or remove default value
-  
-  const TeacherNavigationPage({super.key, this.initialIndex}); // Remove default value or make it optional
+  const TeacherNavigationPage({super.key});
 
   @override
   State<TeacherNavigationPage> createState() => _TeacherNavigationPageState();
@@ -13,46 +11,29 @@ class TeacherNavigationPage extends StatefulWidget {
 class _TeacherNavigationPageState extends State<TeacherNavigationPage> {
   int selectedIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    selectedIndex = widget.initialIndex ?? 0; // Use null-aware operator
-  }
+  final List<Widget> _pages = [
+    const TeacherCoursesPage(), // This will be our main page with all actions
+    const Center(child: Text('Profile - Coming Soon')),
+    const Center(child: Text('Settings - Coming Soon')),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Teacher Portal"),
+        title: const Text('Teacher Portal'),
         backgroundColor: Colors.green,
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.school,
-              size: 100,
-              color: Colors.green,
-            ),
-            SizedBox(height: 20),
-            Text(
-              "Welcome Teacher!",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              "Teacher module is under development",
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
+      body: _pages[selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: selectedIndex,
+        onTap: (index) => setState(() => selectedIndex = index),
+        selectedItemColor: Colors.green,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+        ],
       ),
     );
   }
