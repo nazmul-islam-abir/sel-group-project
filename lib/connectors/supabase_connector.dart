@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+import 'dart:typed_data';
 
 /// This file handles ALL Supabase related work
 /// UI pages should NEVER talk to Supabase directly
@@ -365,13 +367,146 @@ class SupabaseConnector {
     }
   }
 
-  /// 📤 Upload course material
+  /// ==================== FILE UPLOAD METHODS ====================
+
+  /// 📤 Upload file to Supabase Storage (for mobile)
+  static Future<String?> uploadFile({
+    required String filePath,
+    required String fileName,
+    required String courseCode,
+  }) async {
+    try {
+      print('📤 Uploading file: $fileName to course: $courseCode');
+      
+      final file = File(filePath);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storagePath = '$courseCode/${timestamp}_$fileName';
+      
+      // Upload to storage bucket
+      await _client.storage
+          .from('course-materials')
+          .upload(storagePath, file);
+      
+      // Get public URL
+      final publicUrl = _client.storage
+          .from('course-materials')
+          .getPublicUrl(storagePath);
+      
+      print('✅ File uploaded successfully: $publicUrl');
+      return publicUrl;
+      
+    } catch (e) {
+      print('❌ Error uploading file: $e');
+      return null;
+    }
+  }
+
+  /// 📤 Upload file to Supabase Storage (for web - uses bytes)
+  static Future<String?> uploadFileWeb({
+    required Uint8List fileBytes,
+    required String fileName,
+    required String courseCode,
+  }) async {
+    try {
+      print('📤 Uploading file (web): $fileName to course: $courseCode');
+      
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storagePath = '$courseCode/${timestamp}_$fileName';
+      
+      // Upload bytes to storage bucket
+      await _client.storage
+          .from('course-materials')
+          .uploadBinary(storagePath, fileBytes);
+      
+      // Get public URL
+      final publicUrl = _client.storage
+          .from('course-materials')
+          .getPublicUrl(storagePath);
+      
+      print('✅ File uploaded successfully (web): $publicUrl');
+      return publicUrl;
+      
+    } catch (e) {
+      print('❌ Error uploading file (web): $e');
+      return null;
+    }
+  }
+
+  /// 📤 Upload course material info to database
   static Future<void> uploadCourseMaterial(Map<String, dynamic> material) async {
     try {
+      // Add created_at timestamp if not present
+      if (!material.containsKey('created_at')) {
+        material['created_at'] = DateTime.now().toIso8601String();
+      }
+      
+      // Remove published_at if it exists (to avoid schema error)
+      material.remove('published_at');
+      
       await _client.from('course_materials').insert(material);
+      print('✅ Material info saved to database: ${material['title']}');
+      
     } catch (e) {
-      print('Error uploading material: $e');
+      print('❌ Error saving material info: $e');
       rethrow;
+    }
+  }
+
+  /// 📥 Get all materials for a course
+  static Future<List<Map<String, dynamic>>> getCourseMaterialsWithFiles(String courseCode) async {
+    try {
+      final response = await _client
+          .from('course_materials')
+          .select()
+          .eq('course_code', courseCode)
+          .order('created_at', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting course materials: $e');
+      return [];
+    }
+  }
+
+  /// 🗑️ Delete a material (file and database record)
+  static Future<void> deleteMaterial(int materialId, {String? fileUrl}) async {
+    try {
+      // Delete from database first
+      await _client
+          .from('course_materials')
+          .delete()
+          .eq('id', materialId);
+      
+      // If there's a file URL, try to delete from storage
+      if (fileUrl != null && fileUrl.isNotEmpty) {
+        // Extract path from URL
+        final uri = Uri.parse(fileUrl);
+        final path = uri.pathSegments.last;
+        
+        await _client.storage
+            .from('course-materials')
+            .remove([path]);
+      }
+      
+      print('✅ Material deleted successfully');
+      
+    } catch (e) {
+      print('❌ Error deleting material: $e');
+      rethrow;
+    }
+  }
+
+  /// 📋 Get list of files in storage for a course
+  static Future<List<String>> getCourseFiles(String courseCode) async {
+    try {
+      final response = await _client.storage
+          .from('course-materials')
+          .list(path: courseCode);
+      
+      return response.map((file) => file.name).toList();
+    } catch (e) {
+      print('Error listing course files: $e');
+      return [];
     }
   }
 }

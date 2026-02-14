@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../connectors/supabase_connector.dart'; // Add this import
+import '../../connectors/supabase_connector.dart';
 
 class UploadMaterialPage extends StatefulWidget {
   final Map<String, dynamic> course;
@@ -18,7 +19,9 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
   final TextEditingController descriptionController = TextEditingController();
   
   String selectedType = 'announcement';
-  File? selectedFile;
+  
+  // For web - store file bytes and name
+  Uint8List? selectedFileBytes;
   String? fileName;
   bool isUploading = false;
 
@@ -26,10 +29,12 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
 
   @override
   Widget build(BuildContext context) {
+    final courseCode = widget.course['course_code'] ?? widget.course['code'] ?? '';
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Upload to ${widget.course['code'] ?? widget.course['course_code'] ?? 'Course'}'),
-        backgroundColor: Colors.green,
+        title: Text('Upload to $courseCode'),
+        backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -44,11 +49,10 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.course['name'] ?? widget.course['course_name'] ?? 'Course Name',
+                      widget.course['course_name'] ?? widget.course['name'] ?? 'Course',
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    Text('Code: ${widget.course['code'] ?? widget.course['course_code'] ?? 'N/A'}'),
-                    Text('${widget.course['students'] ?? 0} Students'),
+                    Text('Code: $courseCode'),
                   ],
                 ),
               ),
@@ -56,22 +60,18 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
             
             const SizedBox(height: 20),
             
-            // Material Type Dropdown
-            const Text('Material Type:', style: TextStyle(fontWeight: FontWeight.bold)),
+            // Material Type
+            const Text('Type:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: selectedType,
+              value: selectedType,
               items: materialTypes.map((type) {
                 return DropdownMenuItem(
                   value: type,
                   child: Text(type.toUpperCase()),
                 );
               }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => selectedType = value);
-                }
-              },
+              onChanged: (value) => setState(() => selectedType = value!),
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
               ),
@@ -79,7 +79,7 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
             
             const SizedBox(height: 16),
             
-            // Title Field
+            // Title
             const Text('Title:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextField(
@@ -92,25 +92,24 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
             
             const SizedBox(height: 16),
             
-            // Description Field
+            // Description
             const Text('Description:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextField(
               controller: descriptionController,
               maxLines: 3,
               decoration: const InputDecoration(
-                hintText: 'Enter description (optional)',
+                hintText: 'Enter description',
                 border: OutlineInputBorder(),
               ),
             ),
             
             const SizedBox(height: 16),
             
-            // File Upload Section
+            // File upload buttons
             const Text('Attachment:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             
-            // File picker buttons
             Row(
               children: [
                 Expanded(
@@ -120,7 +119,6 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
                     label: const Text('PDF'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
@@ -132,7 +130,6 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
                     label: const Text('Photo'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
@@ -154,21 +151,13 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
                       fileName!.toLowerCase().endsWith('.pdf') 
                           ? Icons.picture_as_pdf 
                           : Icons.image,
-                      color: fileName!.toLowerCase().endsWith('.pdf') 
-                          ? Colors.red 
-                          : Colors.blue,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        fileName!,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    Expanded(child: Text(fileName!)),
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => setState(() {
-                        selectedFile = null;
+                        selectedFileBytes = null;
                         fileName = null;
                       }),
                     ),
@@ -178,7 +167,7 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
             
             const SizedBox(height: 24),
             
-            // Upload Button
+            // Upload button
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -186,11 +175,10 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
                 onPressed: isUploading ? null : _uploadMaterial,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
                 ),
                 child: isUploading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('UPLOAD MATERIAL', style: TextStyle(fontSize: 16)),
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('UPLOAD', style: TextStyle(fontSize: 16)),
               ),
             ),
           ],
@@ -199,102 +187,101 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
     );
   }
 
-  // Pick PDF file
+  // Pick PDF file (works on web and mobile)
   Future<void> _pickPDF() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        allowMultiple: false,
       );
       
       if (result != null) {
         setState(() {
-          selectedFile = File(result.files.single.path!);
+          // For web, use bytes
+          selectedFileBytes = result.files.single.bytes;
           fileName = result.files.single.name;
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking PDF: $e')),
-      );
+      _showError('Error picking PDF: $e');
     }
   }
 
-  // Pick Image - FIXED VERSION
+  // Pick Image (works on web and mobile)
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       
       if (image != null) {
+        // Read bytes for web
+        final bytes = await image.readAsBytes();
         setState(() {
-          selectedFile = File(image.path);
-          // FIXED: Get filename from path
-          fileName = image.path.split(Platform.pathSeparator).last;
+          selectedFileBytes = bytes;
+          fileName = image.name;
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+      _showError('Error picking image: $e');
     }
   }
 
   // Upload material
   Future<void> _uploadMaterial() async {
     if (titleController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a title')),
-      );
+      _showError('Please enter a title');
       return;
     }
 
     setState(() => isUploading = true);
 
     try {
-      // Prepare material data
-      final materialData = {
-        'course_code': widget.course['code'] ?? widget.course['course_code'],
+      final courseCode = widget.course['course_code'] ?? widget.course['code'];
+      
+      String? fileUrl;
+      
+      // Upload file to Supabase Storage if a file is selected
+      if (selectedFileBytes != null && fileName != null) {
+        // Use web upload method
+        fileUrl = await SupabaseConnector.uploadFileWeb(
+          fileBytes: selectedFileBytes!,
+          fileName: fileName!,
+          courseCode: courseCode,
+        );
+      }
+
+      // Save material info to course_materials table
+      await SupabaseConnector.uploadCourseMaterial({
+        'course_code': courseCode,
         'title': titleController.text,
         'description': descriptionController.text,
         'material_type': selectedType,
+        'file_url': fileUrl,
         'file_name': fileName,
-        'created_at': DateTime.now().toIso8601String(),
-      };
-
-      // Upload to Supabase
-      await SupabaseConnector.uploadCourseMaterial(materialData);
+      });
 
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${selectedType.toUpperCase()} uploaded successfully!'),
+        const SnackBar(
+          content: Text('Uploaded successfully!'),
           backgroundColor: Colors.green,
         ),
       );
 
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) Navigator.pop(context);
-      });
+      Navigator.pop(context);
 
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error uploading: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Upload failed: $e');
     } finally {
       if (mounted) setState(() => isUploading = false);
     }
   }
 
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    super.dispose();
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 }
