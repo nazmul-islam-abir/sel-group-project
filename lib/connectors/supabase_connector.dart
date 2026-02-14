@@ -157,14 +157,93 @@ class SupabaseConnector {
     }
   }
 
-  /// 👥 Get students by course - ONLY from students table using student_id
+  /// 👥 Get enrolled students for a course from the enrollments table
+  static Future<List<Map<String, dynamic>>> getEnrolledStudents(String courseCode) async {
+    try {
+      print('🔍 Getting enrolled students for course: $courseCode');
+      
+      // First, get all student_ids from enrollments table for this course
+      final enrollmentResponse = await _client
+          .from('enrollments')
+          .select('student_id')
+          .eq('course_code', courseCode)
+          .eq('status', 'active');
+      
+      print('📊 Enrollment response: $enrollmentResponse');
+      
+      if (enrollmentResponse.isEmpty) {
+        print('⚠️ No enrollments found for course: $courseCode');
+        return [];
+      }
+      
+      // Extract student IDs
+      final studentIds = enrollmentResponse
+          .map<String>((e) => e['student_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      
+      print('📋 Student IDs from enrollments: $studentIds');
+      
+      if (studentIds.isEmpty) {
+        return [];
+      }
+      
+      // Now get student details from students table
+      final studentsResponse = await _client
+          .from('students')
+          .select()
+          .inFilter('student_id', studentIds);
+      
+      print('👥 Students from students table: $studentsResponse');
+      
+      // Format the response
+      final students = studentsResponse.map((student) {
+        return {
+          'student_id': student['student_id']?.toString() ?? '',
+          'id': student['student_id']?.toString() ?? '',
+          'name': student['name']?.toString() ?? 'Unknown',
+          'email': student['email']?.toString() ?? '',
+          'department': student['department']?.toString() ?? '',
+          'semester': student['semester']?.toString() ?? '',
+        };
+      }).toList();
+      
+      print('✅ Found ${students.length} enrolled students with details');
+      return students;
+      
+    } catch (e) {
+      print('❌ Error getting enrolled students: $e');
+      return [];
+    }
+  }
+
+  /// 🔍 Debug method to check enrollments
+  static Future<List<Map<String, dynamic>>> debugEnrollments(String courseCode) async {
+    try {
+      print('🔍 Debugging enrollments for course: $courseCode');
+      
+      final response = await _client
+          .from('enrollments')
+          .select()
+          .eq('course_code', courseCode);
+      
+      print('📊 Debug enrollment response: $response');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('❌ Error debugging enrollments: $e');
+      return [];
+    }
+  }
+
+  /// 👥 Get students by course - (using enrollments table)
   static Future<List<Map<String, dynamic>>> getStudentsByCourse(String courseCode) async {
     try {
-      // First get all student_ids from enrolled_courses for this course
+      // First get all student_ids from enrollments table for this course
       final enrollmentResponse = await _client
-          .from('enrolled_courses')
+          .from('enrollments')
           .select('student_id')
-          .eq('course_code', courseCode);
+          .eq('course_code', courseCode)
+          .eq('status', 'active');
       
       if (enrollmentResponse.isEmpty) {
         print('No students found enrolled in course: $courseCode');
@@ -189,7 +268,7 @@ class SupabaseConnector {
           .select()
           .inFilter('student_id', studentIds);
       
-      // Format the response with ONLY the fields from your students table
+      // Format the response
       return studentsResponse.map((student) {
         return {
           'id': student['id']?.toString() ?? '',
@@ -295,4 +374,4 @@ class SupabaseConnector {
       rethrow;
     }
   }
-} 
+}

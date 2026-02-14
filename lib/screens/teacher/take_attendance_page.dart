@@ -21,39 +21,40 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
   @override
   void initState() {
     super.initState();
-    _loadStudents();
+    _loadEnrolledStudents();
   }
 
-  Future<void> _loadStudents() async {
+  Future<void> _loadEnrolledStudents() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
     try {
-      final courseCode = widget.course['code'] ?? widget.course['course_code'] ?? '';
+      final courseCode = widget.course['course_code'] ?? widget.course['code'];
       
-      if (courseCode.isEmpty) {
-        throw Exception('Course code is missing');
-      }
-
-      // Get students enrolled in this course
-      final enrolledStudents = await SupabaseConnector.getStudentsByCourse(courseCode);
+      print('📚 Loading enrolled students for course: $courseCode');
+      
+      // Get enrolled students using the method
+      final enrolledStudents = await SupabaseConnector.getEnrolledStudents(courseCode);
+      
+      print('✅ Received ${enrolledStudents.length} students');
       
       if (enrolledStudents.isEmpty) {
+        // Debug: Check what's in enrollments table
+        final debugInfo = await SupabaseConnector.debugEnrollments(courseCode);
+        print('🔍 Enrollments in DB: $debugInfo');
+        
         setState(() {
           students = [];
           isLoading = false;
         });
         return;
       }
-
-      // Initialize all students as 'Present' by default with null safety
+      
+      // Initialize all enrolled students as 'Present' by default
       for (var student in enrolledStudents) {
-        final studentId = student['student_id']?.toString() ?? 
-                         student['id']?.toString() ?? 
-                         '';
-        
+        final studentId = student['student_id']?.toString() ?? '';
         if (studentId.isNotEmpty) {
           attendanceStatus[studentId] = 'Present';
         }
@@ -65,7 +66,7 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
       });
 
     } catch (e) {
-      print('Error loading students: $e'); // For debugging
+      print('❌ Error loading students: $e');
       setState(() {
         errorMessage = e.toString();
         isLoading = false;
@@ -90,23 +91,11 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
     setState(() => isSaving = true);
 
     try {
-      final courseCode = widget.course['code'] ?? widget.course['course_code'] ?? '';
+      final courseCode = widget.course['course_code'] ?? widget.course['code'];
       
-      if (courseCode.isEmpty) {
-        throw Exception('Course code is missing');
-      }
-
-      // Prepare attendance records for database with null safety
-      final attendanceRecords = students.where((student) {
-        final studentId = student['student_id']?.toString() ?? 
-                         student['id']?.toString() ?? 
-                         '';
-        return studentId.isNotEmpty;
-      }).map((student) {
-        final studentId = student['student_id']?.toString() ?? 
-                         student['id']?.toString() ?? 
-                         '';
-        
+      // Prepare attendance records
+      final attendanceRecords = students.map((student) {
+        final studentId = student['student_id']?.toString() ?? '';
         return {
           'student_id': studentId,
           'course_code': courseCode,
@@ -115,26 +104,23 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
         };
       }).toList();
 
-      if (attendanceRecords.isEmpty) {
-        throw Exception('No valid students to save attendance for');
-      }
+      print('📝 Saving ${attendanceRecords.length} attendance records');
 
-      // Save to Supabase
       await SupabaseConnector.saveAttendance(attendanceRecords);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Attendance saved successfully!'),
+          content: Text('✅ Attendance saved successfully!'),
           backgroundColor: Colors.green,
         ),
       );
 
-      // Go back after saving
       Navigator.pop(context);
 
     } catch (e) {
+      print('❌ Error saving attendance: $e');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,8 +136,8 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final courseCode = widget.course['code'] ?? widget.course['course_code'] ?? 'Course';
-    final courseName = widget.course['name'] ?? widget.course['course_name'] ?? 'Course';
+    final courseCode = widget.course['course_code'] ?? widget.course['code'] ?? 'Course';
+    final courseName = widget.course['course_name'] ?? widget.course['name'] ?? 'Course';
 
     return Scaffold(
       appBar: AppBar(
@@ -163,8 +149,8 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
         : errorMessage != null
           ? _buildErrorWidget()
           : students.isEmpty
-            ? _buildEmptyWidget()
-            : _buildAttendanceWidget(),
+            ? _buildEmptyWidget(courseCode)
+            : _buildAttendanceWidget(courseName, courseCode),
     );
   }
 
@@ -178,18 +164,18 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
             const Icon(Icons.error_outline, size: 60, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error loading students',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700),
+              'Error loading enrolled students',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              errorMessage ?? 'Unknown error occurred',
+              errorMessage ?? 'Unknown error',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadStudents,
+              onPressed: _loadEnrolledStudents,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
               ),
@@ -201,31 +187,91 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
     );
   }
 
-  Widget _buildEmptyWidget() {
+  Widget _buildEmptyWidget(String courseCode) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline, size: 60, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            'No students enrolled in this course',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Course Code: ${widget.course['code'] ?? widget.course['course_code'] ?? 'N/A'}',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No students enrolled',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Course: $courseCode',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.blue.shade700),
+            ),
+            const SizedBox(height: 20),
+            
+            // Debug button
+            ElevatedButton.icon(
+              onPressed: () async {
+                final debugInfo = await SupabaseConnector.debugEnrollments(courseCode);
+                if (!mounted) return;
+                
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Enrollments in Database'),
+                    content: Container(
+                      width: double.maxFinite,
+                      child: debugInfo.isEmpty
+                        ? const Text('No enrollments found in database.')
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Current enrollments:'),
+                              const SizedBox(height: 8),
+                              ...debugInfo.map((e) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  '• ${e['student_id']} - ${e['course_code']} (${e['status']})',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              )),
+                            ],
+                          ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.search),
+              label: const Text('Check Enrollments'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadEnrolledStudents,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAttendanceWidget() {
+  Widget _buildAttendanceWidget(String courseName, String courseCode) {
     return Column(
       children: [
-        // Course info and date picker
+        // Header
         Container(
           padding: const EdgeInsets.all(16),
           color: Colors.green.shade50,
@@ -237,12 +283,20 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.course['name'] ?? widget.course['course_name'] ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      courseName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
-                    Text(
-                      'Total Students: ${students.length}',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${students.length} Enrolled',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -287,10 +341,8 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
             itemCount: students.length,
             itemBuilder: (context, index) {
               final student = students[index];
-              final studentId = student['student_id']?.toString() ?? 
-                               student['id']?.toString() ?? 
-                               '';
-              final studentName = student['name']?.toString() ?? 'Unknown Student';
+              final studentId = student['student_id']?.toString() ?? '';
+              final studentName = student['name']?.toString() ?? 'Unknown';
               final currentStatus = attendanceStatus[studentId] ?? 'Present';
 
               return Card(
@@ -299,30 +351,20 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      // Student info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              studentName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              'ID: $studentId',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
+                      CircleAvatar(
+                        backgroundColor: Colors.green.shade100,
+                        child: Text(
+                          studentName.isNotEmpty ? studentName[0].toUpperCase() : '?',
+                          style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      
-                      // Status buttons
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          studentName,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
+                      ),
                       _buildStatusButton('Present', studentId, currentStatus, Colors.green),
                       const SizedBox(width: 4),
                       _buildStatusButton('Late', studentId, currentStatus, Colors.orange),
@@ -337,7 +379,7 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
         ),
 
         // Save button
-        Container(
+        Padding(
           padding: const EdgeInsets.all(16),
           child: SizedBox(
             width: double.infinity,
@@ -349,7 +391,7 @@ class _TakeAttendancePageState extends State<TakeAttendancePage> {
               ),
               child: isSaving
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('SAVE ATTENDANCE', style: TextStyle(fontSize: 16)),
+                : const Text('SAVE ATTENDANCE', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ),
