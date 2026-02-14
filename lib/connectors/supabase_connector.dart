@@ -380,7 +380,8 @@ class SupabaseConnector {
       
       final file = File(filePath);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = '$courseCode/${timestamp}_$fileName';
+      final cleanFileName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9\.]'), '_');
+      final storagePath = '$courseCode/${timestamp}_$cleanFileName';
       
       // Upload to storage bucket
       await _client.storage
@@ -411,19 +412,39 @@ class SupabaseConnector {
       print('📤 Uploading file (web): $fileName to course: $courseCode');
       
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = '$courseCode/${timestamp}_$fileName';
+      // Clean filename - remove special characters
+      final cleanFileName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9\.]'), '_');
+      final storagePath = '$courseCode/${timestamp}_$cleanFileName';
+      
+      print('📁 Storage path: $storagePath');
+      
+      // Determine content type
+      String contentType = 'application/octet-stream';
+      if (fileName.toLowerCase().endsWith('.pdf')) {
+        contentType = 'application/pdf';
+      } else if (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (fileName.toLowerCase().endsWith('.png')) {
+        contentType = 'image/png';
+      }
       
       // Upload bytes to storage bucket
       await _client.storage
           .from('course-materials')
-          .uploadBinary(storagePath, fileBytes);
+          .uploadBinary(
+            storagePath, 
+            fileBytes,
+            fileOptions: FileOptions(contentType: contentType),
+          );
+      
+      print('✅ File uploaded to storage successfully');
       
       // Get public URL
       final publicUrl = _client.storage
           .from('course-materials')
           .getPublicUrl(storagePath);
       
-      print('✅ File uploaded successfully (web): $publicUrl');
+      print('✅ Public URL: $publicUrl');
       return publicUrl;
       
     } catch (e) {
