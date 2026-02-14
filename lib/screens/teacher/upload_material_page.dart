@@ -60,7 +60,7 @@ class _UploadMaterialPageState extends State<UploadMaterialPage> {
             const Text('Material Type:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: selectedType,
+              initialValue: selectedType,
               items: materialTypes.map((type) {
                 return DropdownMenuItem(
                   value: type,

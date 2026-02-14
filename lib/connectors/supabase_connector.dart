@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:io';
 
 /// This file handles ALL Supabase related work
 /// UI pages should NEVER talk to Supabase directly
@@ -158,30 +157,103 @@ class SupabaseConnector {
     }
   }
 
-  /// 👥 Get students by course
+  /// 👥 Get students by course - ONLY from students table using student_id
   static Future<List<Map<String, dynamic>>> getStudentsByCourse(String courseCode) async {
     try {
-      // You need an enrollments table for this
-      // For now, return mock data
-      return [
-        {'id': 'S001', 'name': 'Alice Johnson', 'email': 'alice@student.edu'},
-        {'id': 'S002', 'name': 'Bob Smith', 'email': 'bob@student.edu'},
-        {'id': 'S003', 'name': 'Charlie Brown', 'email': 'charlie@student.edu'},
-        {'id': 'S004', 'name': 'Diana Prince', 'email': 'diana@student.edu'},
-      ];
+      // First get all student_ids from enrolled_courses for this course
+      final enrollmentResponse = await _client
+          .from('enrolled_courses')
+          .select('student_id')
+          .eq('course_code', courseCode);
+      
+      if (enrollmentResponse.isEmpty) {
+        print('No students found enrolled in course: $courseCode');
+        return [];
+      }
+      
+      // Extract student IDs
+      final studentIds = enrollmentResponse
+          .map<String>((e) => e['student_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      
+      if (studentIds.isEmpty) {
+        return [];
+      }
+      
+      print('Found ${studentIds.length} students enrolled in course: $courseCode');
+      
+      // Get student details from students table using the IDs
+      final studentsResponse = await _client
+          .from('students')
+          .select()
+          .inFilter('student_id', studentIds);
+      
+      // Format the response with ONLY the fields from your students table
+      return studentsResponse.map((student) {
+        return {
+          'id': student['id']?.toString() ?? '',
+          'student_id': student['student_id']?.toString() ?? '',
+          'name': student['name']?.toString() ?? 'Unknown',
+          'email': student['email']?.toString() ?? '',
+          'department': student['department']?.toString() ?? '',
+          'semester': student['semester']?.toString() ?? '',
+        };
+      }).toList();
+      
     } catch (e) {
-      print('Error getting students: $e');
+      print('Error getting students by course: $e');
       return [];
     }
   }
 
-  /// 📝 Save attendance
+  /// 📝 Save attendance to attendance table
   static Future<void> saveAttendance(List<Map<String, dynamic>> attendanceRecords) async {
     try {
-      await _client.from('attendance').insert(attendanceRecords);
+      // Validate records before inserting
+      if (attendanceRecords.isEmpty) {
+        throw Exception('No attendance records to save');
+      }
+
+      // Ensure each record has required fields
+      final validRecords = attendanceRecords.where((record) {
+        return record.containsKey('student_id') && 
+               record.containsKey('course_code') && 
+               record.containsKey('date') && 
+               record.containsKey('status');
+      }).toList();
+
+      if (validRecords.isEmpty) {
+        throw Exception('No valid attendance records to save');
+      }
+
+      // Insert attendance records into attendance table
+      await _client.from('attendance').insert(validRecords);
+      
+      print('Attendance saved successfully: ${validRecords.length} records');
+      
     } catch (e) {
       print('Error saving attendance: $e');
       rethrow;
+    }
+  }
+
+  /// 📝 Get attendance for a specific date and course
+  static Future<List<Map<String, dynamic>>> getAttendanceByDate(
+    String courseCode, 
+    String date
+  ) async {
+    try {
+      final response = await _client
+          .from('attendance')
+          .select()
+          .eq('course_code', courseCode)
+          .eq('date', date);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting attendance by date: $e');
+      return [];
     }
   }
 
@@ -197,11 +269,7 @@ class SupabaseConnector {
         return List<Map<String, dynamic>>.from(response);
       }
       
-      // Mock data
-      return [
-        {'student_id': 'S001', 'name': 'Alice Johnson', 'attendance': 8.5, 'assignment': 15, 'ct1': 8, 'ct2': 9, 'mid': 18, 'final': 35},
-        {'student_id': 'S002', 'name': 'Bob Smith', 'attendance': 9, 'assignment': 14, 'ct1': 7, 'ct2': 8, 'mid': 17, 'final': 32},
-      ];
+      return [];
     } catch (e) {
       print('Error getting course marks: $e');
       return [];
@@ -227,4 +295,4 @@ class SupabaseConnector {
       rethrow;
     }
   }
-}
+} 
