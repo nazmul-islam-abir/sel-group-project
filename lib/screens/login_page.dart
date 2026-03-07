@@ -19,8 +19,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   // Controllers
   final TextEditingController _idController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   late AnimationController _animationController;
@@ -66,8 +64,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   @override
   void dispose() {
     _idController.dispose();
-    _emailController.dispose();
-    _usernameController.dispose();
     _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
@@ -86,8 +82,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   void _clearControllers() {
     _idController.clear();
-    _emailController.clear();
-    _usernameController.clear();
     _passwordController.clear();
   }
 
@@ -115,15 +109,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   Future<void> _loginStudent() async {
     final id = _idController.text.trim();
-    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    if (id.isEmpty || email.isEmpty) {
-      _showError('Please enter both Student ID and Email');
+    if (id.isEmpty || password.isEmpty) {
+      _showError('Please enter both Student ID and Password');
       return;
     }
 
     // Hardcoded test credentials for testing
-    if (id == 'student1' && email == 'student@test.com') {
+    if (id == 'student1' && password == 'student123') {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -133,12 +127,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       return;
     }
 
+    // Fallback: check against Supabase students table
     try {
       final response = await _client
           .from('students')
           .select()
           .eq('student_id', id)
-          .eq('email', email)
           .maybeSingle();
 
       if (response != null && mounted) {
@@ -147,7 +141,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           MaterialPageRoute(builder: (context) => const NavigationPage()),
         );
       } else {
-        _showError('Invalid Student ID or Email');
+        _showError('Invalid Student ID or Password');
       }
     } catch (e) {
       _showError('Login failed. Please try again.');
@@ -156,15 +150,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   Future<void> _loginTeacher() async {
     final id = _idController.text.trim();
-    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    if (id.isEmpty || email.isEmpty) {
-      _showError('Please enter both Teacher ID and Email');
+    if (id.isEmpty || password.isEmpty) {
+      _showError('Please enter both Teacher ID and Password');
       return;
     }
 
     // Hardcoded test credentials for testing
-    if (id == 'teacher1' && email == 'teacher@test.com') {
+    if (id == 'teacher1' && password == 'teacher123') {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -174,12 +168,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       return;
     }
 
+    // Fallback: check against Supabase teachers table
     try {
       final response = await _client
           .from('teachers')
           .select()
           .eq('teacher_id', id)
-          .eq('email', email)
           .maybeSingle();
 
       if (response != null && mounted) {
@@ -188,7 +182,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           MaterialPageRoute(builder: (context) => const TeacherNavigationPage()),
         );
       } else {
-        _showError('Invalid Teacher ID or Email');
+        _showError('Invalid Teacher ID or Password');
       }
     } catch (e) {
       _showError('Login failed. Please try again.');
@@ -196,7 +190,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
 
   void _loginAdmin() {
-    final username = _usernameController.text.trim();
+    final username = _idController.text.trim();
     final password = _passwordController.text.trim();
 
     if (username.isEmpty || password.isEmpty) {
@@ -414,44 +408,25 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           ),
           const SizedBox(height: 4),
           Text(
-            _selectedRole == 2
-                ? 'Enter your admin credentials'
-                : 'Enter your ID and email to continue',
+            'Enter your credentials to continue',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 24),
-          // Form fields based on role
-          if (_selectedRole == 0 || _selectedRole == 1) ...[
-            _buildTextField(
-              controller: _idController,
-              label: _selectedRole == 0 ? 'Student ID' : 'Teacher ID',
-              icon: Icons.badge_outlined,
-              color: role.color,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _emailController,
-              label: 'Email',
-              icon: Icons.email_outlined,
-              color: role.color,
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ] else ...[
-            _buildTextField(
-              controller: _usernameController,
-              label: 'Username',
-              icon: Icons.person_outline,
-              color: role.color,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _passwordController,
-              label: 'Password',
-              icon: Icons.lock_outline,
-              color: role.color,
-              isPassword: true,
-            ),
-          ],
+          // Form fields - all roles use ID/Username + Password
+          _buildTextField(
+            controller: _idController,
+            label: _selectedRole == 0 ? 'Student ID' : _selectedRole == 1 ? 'Teacher ID' : 'Username',
+            icon: Icons.badge_outlined,
+            color: role.color,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: _passwordController,
+            label: 'Password',
+            icon: Icons.lock_outline,
+            color: role.color,
+            isPassword: true,
+          ),
           const SizedBox(height: 28),
           // Login button
           SizedBox(
