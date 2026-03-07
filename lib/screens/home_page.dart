@@ -1,6 +1,8 @@
+// home_page.dart
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/student/navigation_page.dart';
 import 'package:myapp/screens/Admin/Admin_Page.dart';  // Import your Admin page
+import 'package:myapp/screens/teacher/teacher_navigation_page.dart'; // Teacher page
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -12,7 +14,7 @@ class HomePage extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          "Hello This Is My Homepage",
+          "Academic Management System",
           style: TextStyle(
             fontSize: 20,
             color: Color.fromARGB(255, 121, 11, 11),
@@ -24,7 +26,6 @@ class HomePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
             // Student Button
             SizedBox(
               width: 200,
@@ -33,14 +34,14 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const NavigationPage(), // ✅ Correct syntax
+                      builder: (context) => const NavigationPage(),
                     ),
                   );
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: const [
-                    Text("Student Page"),
+                    Text("Student Portal"),
                     SizedBox(width: 20),
                     Icon(Icons.person_3_rounded),
                   ],
@@ -50,7 +51,34 @@ class HomePage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Admin Button - Navigate directly to MyAdmin
+            // Teacher Button
+            SizedBox(
+              width: 200,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TeacherNavigationPage()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Text("Teacher Portal"),
+                    SizedBox(width: 20),
+                    Icon(Icons.school),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Admin Button
             SizedBox(
               width: 200,
               child: ElevatedButton(
@@ -58,7 +86,7 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const MyAdmin(), // ✅ Use MyAdmin, not AdminNavigationPage
+                      builder: (context) => const MyAdmin(),
                     ),
                   );
                 },
@@ -72,7 +100,6 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-
           ],
         ),
       ),
