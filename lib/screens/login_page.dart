@@ -122,6 +122,17 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       return;
     }
 
+    // Hardcoded test credentials for testing
+    if (id == 'student1' && email == 'student@test.com') {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NavigationPage()),
+        );
+      }
+      return;
+    }
+
     try {
       final response = await _client
           .from('students')
@@ -149,6 +160,17 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
     if (id.isEmpty || email.isEmpty) {
       _showError('Please enter both Teacher ID and Email');
+      return;
+    }
+
+    // Hardcoded test credentials for testing
+    if (id == 'teacher1' && email == 'teacher@test.com') {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const TeacherNavigationPage()),
+        );
+      }
       return;
     }
 
