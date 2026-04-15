@@ -1,40 +1,62 @@
 import 'package:flutter/material.dart';
+import 'teacher_profile_page.dart';
 import 'teacher_courses_page.dart';
+import 'teacher_attendance_page.dart';
+import 'teacher_marks_page.dart';
+import 'teacher_upload_page.dart';
+import 'teacher_base_page.dart';
 
 class TeacherNavigationPage extends StatefulWidget {
-  const TeacherNavigationPage({super.key});
+  final int initialIndex;
+  const TeacherNavigationPage({super.key, this.initialIndex = 0});
 
   @override
   State<TeacherNavigationPage> createState() => _TeacherNavigationPageState();
 }
 
 class _TeacherNavigationPageState extends State<TeacherNavigationPage> {
-  int selectedIndex = 0;
+  late int selectedIndex;
 
-  final List<Widget> _pages = [
-    const TeacherCoursesPage(), // This will be our main page with all actions
-    const Center(child: Text('Profile - Coming Soon')),
-    const Center(child: Text('Settings - Coming Soon')),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    selectedIndex = widget.initialIndex;
+  }
+
+  void onItemTapped(int index) {
+    setState(() {
+      selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Teacher Portal'),
-        backgroundColor: Colors.green,
-      ),
-      body: _pages[selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        onTap: (index) => setState(() => selectedIndex = index),
-        selectedItemColor: Colors.green,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
-      ),
+    Widget currentPage;
+    
+    switch (selectedIndex) {
+      case 0:
+        currentPage = const TeacherProfilePage();
+        break;
+      case 1:
+        currentPage = const TeacherCoursesPage();
+        break;
+      case 2:
+        currentPage = const TeacherAttendancePage();
+        break;
+      case 3:
+        currentPage = const TeacherMarksPage();
+        break;
+      case 4:
+        currentPage = const TeacherUploadPage();
+        break;
+      default:
+        currentPage = const TeacherProfilePage();
+    }
+
+    return TeacherBasePage(
+      currentIndex: selectedIndex,
+      onNavItemTapped: onItemTapped,
+      child: currentPage,
     );
   }
 }
