@@ -14,7 +14,6 @@ class TeacherCoursesPage extends StatefulWidget {
 class _TeacherCoursesPageState extends State<TeacherCoursesPage> {
   List<Map<String, dynamic>> courses = [];
   bool isLoading = true;
-  String? errorMessage;
 
   @override
   void initState() {
@@ -23,80 +22,121 @@ class _TeacherCoursesPageState extends State<TeacherCoursesPage> {
   }
 
   Future<void> _loadCourses() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-
+    setState(() => isLoading = true);
     try {
-      // Get teacher ID (you might need to get this from auth)
       final teacher = await SupabaseConnector.getTeacher();
       final teacherId = teacher['teacher_id'];
-      
-      // Get courses from the "courses" table
       final teacherCourses = await SupabaseConnector.getTeacherCourses(teacherId);
-      
       setState(() {
         courses = teacherCourses;
         isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        errorMessage = e.toString();
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('My Courses'),
         backgroundColor: Colors.green,
+        elevation: 0,
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadCourses,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadCourses),
         ],
       ),
-      body: isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.green))
-        : errorMessage != null
-          ? _buildErrorWidget()
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.green))
           : courses.isEmpty
-            ? _buildEmptyWidget()
-            : _buildCoursesList(),
+              ? _buildEmptyState()
+              : RefreshIndicator(
+                  onRefresh: _loadCourses,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: courses.length,
+                    itemBuilder: (context, index) => _buildCourseCard(courses[index]),
+                  ),
+                ),
     );
   }
 
-  Widget _buildErrorWidget() {
+  Widget _buildEmptyState() {
     return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.book_outlined, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text('No courses assigned', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseCard(Map<String, dynamic> course) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline, size: 60, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'Error loading courses',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.book, color: Colors.green, size: 30),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        course['course_name'] ?? course['name'] ?? 'Unknown',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Code: ${course['course_code'] ?? course['code'] ?? 'N/A'}',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                      Text(
+                        'Semester: ${course['semester'] ?? 'N/A'}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              errorMessage ?? 'Unknown error',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadCourses,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-              ),
-              child: const Text('Try Again'),
+            const Divider(),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildActionButton(Icons.check_circle, 'Attendance', Colors.green, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => TakeAttendancePage(course: course)));
+                }),
+                _buildActionButton(Icons.grade, 'Marks', Colors.orange, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => EnterMarksPage(course: course)));
+                }),
+                _buildActionButton(Icons.upload_file, 'Upload', Colors.blue, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => UploadMaterialPage(course: course)));
+                }),
+              ],
             ),
           ],
         ),
@@ -104,137 +144,7 @@ class _TeacherCoursesPageState extends State<TeacherCoursesPage> {
     );
   }
 
-  Widget _buildEmptyWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.book_outlined, size: 60, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            'No courses assigned',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCoursesList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: courses.length,
-      itemBuilder: (context, index) {
-        final course = courses[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Course info
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.book, color: Colors.green),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            course['course_name'] ?? course['name'] ?? 'Unknown',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Code: ${course['course_code'] ?? course['code'] ?? 'N/A'}',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                          Text(
-                            'Semester: ${course['semester'] ?? 'N/A'}',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 8),
-                
-                // Action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.check_circle,
-                      label: 'Attendance',
-                      color: Colors.green,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TakeAttendancePage(course: course),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildActionButton(
-                      icon: Icons.grade,
-                      label: 'Marks',
-                      color: Colors.orange,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EnterMarksPage(course: course),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildActionButton(
-                      icon: Icons.upload_file,
-                      label: 'Upload',
-                      color: Colors.blue,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UploadMaterialPage(course: course),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -246,6 +156,7 @@ class _TeacherCoursesPageState extends State<TeacherCoursesPage> {
             backgroundColor: color,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
       ),
