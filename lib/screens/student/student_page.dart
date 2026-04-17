@@ -1,7 +1,8 @@
-// student_page.dart - Comprehensive Student Dashboard
+// student_page.dart - FIXED, NO OVERFLOW ERRORS
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'navigation_page.dart';
+import 'todo_page.dart';
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
@@ -10,978 +11,1664 @@ class MyStudent extends StatefulWidget {
   State<MyStudent> createState() => _MyStudentState();
 }
 
-class _MyStudentState extends State<MyStudent> {
-  // ================= STUDENT DATA =================
-  Map<String, dynamic> studentInfo = {};
+class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMixin {
+  // ==================== STUDENT DATA ====================
+  String name = '';
+  String studentId = '';
+  String semester = '';
+  String department = '';
+  String email = '';
+  
+  // REAL DATA
   List<Map<String, dynamic>> enrolledCourses = [];
   List<Map<String, dynamic>> attendanceRecords = [];
   List<Map<String, dynamic>> marks = [];
-  List<Map<String, dynamic>> recentMaterials = [];
+  List<Map<String, dynamic>> todos = [];
   
+  // DYNAMIC CALCULATIONS
+  int pendingTasksCount = 0;
+  double overallAttendance = 0.0;
+  double averageMarks = 0.0;
+  String topPerformingCourse = '';
+  String weakestCourse = '';
+  String attendanceStreak = '';
+  String nextClassInfo = '';
+  
+  // UI STATES
   bool isLoading = true;
   bool hasError = false;
-  String errorMessage = '';
+  late AnimationController _animationController;
+  
+  // RANDOM ELEMENTS
+  final List<List<Color>> headerGradients = [
+    [const Color(0xFF4158D0), const Color(0xFFC850C0)],
+    [const Color(0xFF0093E9), const Color(0xFF80D0C7)],
+    [const Color(0xFF8EC5FC), const Color(0xFFE0C3FC)],
+    [const Color(0xFFFBAB7E), const Color(0xFFF7CE68)],
+    [const Color(0xFF85FFBD), const Color(0xFFFFFB7D)],
+    [const Color(0xFFA9C9FF), const Color(0xFFFFBBEC)],
+    [const Color(0xFFFA8BFF), const Color(0xFF2BD2FF)],
+  ];
+  
+  final List<Map<String, String>> quotes = [
+    {'icon': '📚', 'text': 'Keep learning,'},
+    {'icon': '⚡', 'text': 'Power level:'},
+    {'icon': '🎯', 'text': 'Target:'},
+    {'icon': '💫', 'text': 'Progress:'},
+    {'icon': '🌟', 'text': 'Top:'},
+  ];
+
+  List<Color> currentGradient = [Colors.blue, Colors.purple];
+  Map<String, String> currentQuote = {};
 
   @override
   void initState() {
     super.initState();
+    _randomizeTheme();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     loadAllStudentData();
   }
 
-  /// 🔄 Load ALL student data from Supabase
-  Future<void> loadAllStudentData() async {
-    try {
-      setState(() {
-        isLoading = true;
-        hasError = false;
-      });
-
-      // 1. Get student basic info
-      studentInfo = await SupabaseConnector.getStudent();
-      final studentId = studentInfo['student_id']?.toString() ?? '';
-
-      // 2. Get enrolled courses
-      enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
-
-      // 3. Get attendance records (limited to 5 for dashboard)
-      attendanceRecords = await SupabaseConnector.getAttendance(studentId);
-      if (attendanceRecords.length > 5) {
-        attendanceRecords = attendanceRecords.take(5).toList();
-      }
-
-      // 4. Get marks
-      marks = await SupabaseConnector.getStudentMarks(studentId);
-
-      // 5. Get recent materials from all courses
-      await loadRecentMaterials(enrolledCourses);
-
-      setState(() => isLoading = false);
-    } catch (error) {
-      print("Error loading student data: $error");
-      setState(() {
-        isLoading = false;
-        hasError = true;
-        errorMessage = error.toString();
-      });
-    }
-  }
-
-  /// Load recent materials from enrolled courses
-  Future<void> loadRecentMaterials(List<Map<String, dynamic>> courses) async {
-    recentMaterials = [];
-    
-    for (var course in courses) {
-      final courseCode = course['course_code'];
-      final materials = await SupabaseConnector.getCourseMaterials(courseCode);
-      if (materials.isNotEmpty) {
-        // Add course name to each material
-        final materialsWithCourse = materials.map((material) {
-          return {
-            ...material,
-            'course_name': course['course_name'],
-            'course_code': courseCode,
-          };
-        }).toList();
-        
-        recentMaterials.addAll(materialsWithCourse);
-      }
-    }
-    
-    // Sort by date and take only 3 most recent
-    recentMaterials.sort((a, b) {
-      final dateA = a['created_at']?.toString() ?? '';
-      final dateB = b['created_at']?.toString() ?? '';
-      return dateB.compareTo(dateA);
+  void _randomizeTheme() {
+    setState(() {
+      currentGradient = (headerGradients..shuffle()).first;
+      currentQuote = (quotes..shuffle()).first;
     });
-    
-    if (recentMaterials.length > 3) {
-      recentMaterials = recentMaterials.take(3).toList();
-    }
-  }
-
-  /// Calculate overall attendance percentage
-  double get overallAttendance {
-    if (attendanceRecords.isEmpty) return 0.0;
-    
-    int totalClasses = attendanceRecords.length;
-    int presentCount = attendanceRecords
-        .where((record) => record['status'] == 'Present')
-        .length;
-    
-    return (presentCount / totalClasses) * 100;
-  }
-
-  /// Calculate average marks
-  double get averageMarks {
-    if (marks.isEmpty) return 0.0;
-    
-    double total = 0.0;
-    int count = 0;
-    
-    for (var mark in marks) {
-      // Sum all available marks
-      List<dynamic> markValues = [
-        mark['attendance'] ?? 0,
-        mark['assignment'] ?? 0,
-        mark['ct1'] ?? 0,
-        mark['ct2'] ?? 0,
-        mark['mid'] ?? 0,
-        mark['final_exam'] ?? 0,
-      ];
-      
-      double courseTotal = markValues
-          .whereType<num>()
-          .map((value) => value.toDouble())
-          .fold(0.0, (sum, value) => sum + value);
-      
-      total += courseTotal;
-      count++;
-    }
-    
-    return count > 0 ? total / count : 0.0;
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: loadAllStudentData,
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.refresh, color: Colors.white),
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // ==================== LOAD REAL DATA ====================
+  Future<void> loadAllStudentData() async {
+    try {
+      setState(() { 
+        isLoading = true; 
+        hasError = false; 
+      });
+
+      final studentData = await SupabaseConnector.getStudent();
+      
+      setState(() {
+        name = studentData['name']?.toString() ?? 'Student';
+        studentId = studentData['student_id']?.toString() ?? '';
+        semester = studentData['semester']?.toString() ?? '';
+        department = studentData['department']?.toString() ?? '';
+        email = studentData['email']?.toString() ?? '';
+      });
+
+      if (studentId.isNotEmpty) {
+        enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
+        attendanceRecords = await SupabaseConnector.getAttendance(studentId);
+        marks = await SupabaseConnector.getStudentMarks(studentId);
+        todos = await SupabaseConnector.getMyTodos(studentId);
+        
+        calculateStats();
+      }
+
+      _animationController.forward();
+      
+      setState(() { isLoading = false; });
+    } catch (error) {
+      print("Error: $error");
+      setState(() { isLoading = false; hasError = true; });
+    }
+  }
+
+  void calculateStats() {
+    // Attendance
+    if (attendanceRecords.isNotEmpty) {
+      int total = attendanceRecords.length;
+      int present = attendanceRecords.where((r) => 
+        r['status'] == 'Present' || r['status'] == 'Late'
+      ).length;
+      overallAttendance = total > 0 ? (present / total * 100) : 0.0;
+
+      // Streak
+      int streak = 0;
+      for (var record in attendanceRecords.take(10)) {
+        if (record['status'] == 'Present' || record['status'] == 'Late') {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      attendanceStreak = streak >= 5 ? '🔥 $streak day' :
+                        streak >= 3 ? '✨ $streak in row' :
+                        streak > 0 ? '📅 $streak cons' : '🎯 Start!';
+
+      // Next class
+      final latestAbsent = attendanceRecords.firstWhere(
+        (r) => r['status'] == 'Absent',
+        orElse: () => {},
+      );
+      nextClassInfo = latestAbsent.isNotEmpty 
+          ? 'Next: ${latestAbsent['course_code'] ?? 'Class'}' 
+          : '✅ All caught up!';
+    }
+
+    // Marks
+    if (marks.isNotEmpty) {
+      double total = 0;
+      double highest = 0;
+      String top = '';
+
+      for (var mark in marks) {
+        double courseTotal = 0;
+        courseTotal += (mark['attendance'] ?? 0).toDouble();
+        courseTotal += (mark['assignment'] ?? 0).toDouble();
+        courseTotal += (mark['ct1'] ?? 0).toDouble();
+        courseTotal += (mark['ct2'] ?? 0).toDouble();
+        courseTotal += (mark['mid'] ?? 0).toDouble();
+        courseTotal += (mark['final_exam'] ?? 0).toDouble();
+
+        total += courseTotal;
+        if (courseTotal > highest) {
+          highest = courseTotal;
+          top = mark['course_code'] ?? '';
+        }
+      }
+
+      averageMarks = marks.isNotEmpty ? total / marks.length : 0.0;
+      topPerformingCourse = top.isNotEmpty ? top : 'N/A';
+    }
+
+    // Tasks
+    pendingTasksCount = todos.where((t) => t['is_completed'] == false).length;
+  }
+
+  // ==================== NAVIGATION ====================
+  void _openTodoPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TodoPage()),
+    ).then((_) => loadAllStudentData());
+  }
+
+  void _logout() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.red),
+            SizedBox(width: 10),
+            Text('Logout'),
+          ],
+        ),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/login');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  // ==================== BUILD ====================
+  @override
+  Widget build(BuildContext context) {
     if (isLoading) {
-      return _buildLoading();
+      return _buildLoadingScreen();
     }
 
     if (hasError) {
-      return _buildError();
+      return _buildErrorScreen();
     }
 
-    return RefreshIndicator(
-      onRefresh: loadAllStudentData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            // ================= PROFILE HEADER =================
-            _buildProfileHeader(),
-
-            // ================= QUICK STATS =================
-            _buildQuickStats(),
-
-            // ================= ENROLLED COURSES =================
-            _buildEnrolledCourses(),
-
-            // ================= RECENT ACTIVITIES =================
-            _buildRecentActivities(),
-
-            // ================= QUICK LINKS =================
-            _buildQuickLinks(),
-
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            'Loading your dashboard...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              errorMessage,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: loadAllStudentData,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 50, bottom: 30, left: 20, right: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Profile Avatar
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 60,
-              color: Colors.blue,
-            ),
-          ),
-          const SizedBox(height: 15),
-
-          // Student Name
-          Text(
-            studentInfo['name']?.toString() ?? 'Student Name',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 5),
-
-          // Student ID
-          Text(
-            'ID: ${studentInfo['student_id']?.toString() ?? 'N/A'}',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 5),
-
-          // Semester & Department
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildInfoChip(
-                'Semester ${studentInfo['semester']?.toString() ?? 'N/A'}',
-                Icons.school,
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      drawer: _buildDrawer(),
+      body: RefreshIndicator(
+        onRefresh: loadAllStudentData,
+        color: currentGradient.first,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // ============ FIXED HEADER - NO OVERFLOW ============
+            SliverAppBar(
+              expandedHeight: 200,
+              pinned: true,
+              stretch: true,
+              backgroundColor: currentGradient.first,
+              elevation: 0,
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+                  ),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
               ),
-              const SizedBox(width: 10),
-              _buildInfoChip(
-                studentInfo['department']?.toString() ?? 'Department',
-                Icons.business,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoChip(String text, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStats() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          // Courses Stat
-          _buildStatCard(
-            icon: Icons.school,
-            value: enrolledCourses.length.toString(),
-            label: 'Courses',
-            color: Colors.blue,
-          ),
-          const SizedBox(width: 15),
-
-          // Attendance Stat
-          _buildStatCard(
-            icon: Icons.percent,
-            value: '${overallAttendance.toStringAsFixed(1)}%',
-            label: 'Attendance',
-            color: Colors.green,
-          ),
-          const SizedBox(width: 15),
-
-          // Marks Stat
-          _buildStatCard(
-            icon: Icons.bar_chart,
-            value: averageMarks.toStringAsFixed(1),
-            label: 'Avg Marks',
-            color: Colors.orange,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 30,
-              color: color,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnrolledCourses() {
-    if (enrolledCourses.isEmpty) {
-      return _buildEmptySection(
-        icon: Icons.school,
-        title: 'No Courses Enrolled',
-        subtitle: 'You haven\'t enrolled in any courses yet',
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with View All button
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'My Courses',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              actions: [
+                // Task badge - FIXED OVERFLOW
+                if (pendingTasksCount > 0)
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.task_alt_rounded, color: Colors.white, size: 24),
+                        ),
+                        onPressed: _openTodoPage,
+                      ),
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade400,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                          child: Center(
+                            child: Text(
+                              pendingTasksCount > 9 ? '9+' : '$pendingTasksCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(width: 8),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                stretchModes: const [StretchMode.zoomBackground],
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: currentGradient,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Abstract shapes
+                      Positioned(
+                        right: -30,
+                        top: -30,
+                        child: Container(
+                          width: 180,
+                          height: 180,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: -40,
+                        bottom: -40,
+                        child: Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                      ),
+                      
+                      // Profile content - FIXED OVERFLOW
+                      Positioned(
+                        bottom: 20,
+                        left: 16,
+                        right: 16,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Avatar with ring
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 28,
+                                backgroundColor: Colors.white,
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: currentGradient.first,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Name and badges - USING COLUMN + WRAP FOR BETTER SPACE MANAGEMENT
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  // WRAP instead of ROW for badges - FIXES OVERFLOW
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          department.isNotEmpty ? _shortDepartment(department) : 'CSE',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          'Sem $semester',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NavigationPage(initialIndex: 1),
+              ),
+            ),
+
+            // ============ MAIN CONTENT ============
+            SliverPadding(
+              padding: const EdgeInsets.all(16),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // ============ ATTENDANCE CARD - FIXED OVERFLOW ============
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white,
+                            Colors.grey.shade50,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: currentGradient.first.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Row 1: Icon + Stats + Badge - FIXED OVERFLOW
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Icon
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      currentGradient.first.withOpacity(0.1),
+                                      currentGradient.last.withOpacity(0.1),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  overallAttendance >= 75 ? Icons.emoji_events_rounded :
+                                  overallAttendance >= 60 ? Icons.trending_up_rounded :
+                                  Icons.trending_down_rounded,
+                                  color: overallAttendance >= 75 ? Colors.amber.shade700 :
+                                        overallAttendance >= 60 ? Colors.blue.shade700 :
+                                        Colors.orange.shade700,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Stats - Expanded with proper constraints
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Quote row
+                                    Row(
+                                      children: [
+                                        Text(
+                                          currentQuote['icon'] ?? '',
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            currentQuote['text'] ?? '',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    // Attendance percentage
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          '${overallAttendance.toStringAsFixed(1)}%',
+                                          style: TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            color: overallAttendance >= 75 ? Colors.green.shade700 :
+                                                  overallAttendance >= 60 ? Colors.blue.shade700 :
+                                                  Colors.orange.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            attendanceStreak,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey.shade700,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Total classes badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: currentGradient.first.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${attendanceRecords.length}',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: currentGradient.first,
+                                      ),
+                                    ),
+                                    Text(
+                                      'classes',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 20),
+                          
+                          // Status bars - FIXED LAYOUT
+                          Row(
+                            children: [
+                              Expanded(child: _buildStatusBar(
+                                'Present',
+                                attendanceRecords.where((r) => r['status'] == 'Present').length,
+                                attendanceRecords.length,
+                                Colors.green,
+                              )),
+                              const SizedBox(width: 8),
+                              Expanded(child: _buildStatusBar(
+                                'Late',
+                                attendanceRecords.where((r) => r['status'] == 'Late').length,
+                                attendanceRecords.length,
+                                Colors.orange,
+                              )),
+                              const SizedBox(width: 8),
+                              Expanded(child: _buildStatusBar(
+                                'Absent',
+                                attendanceRecords.where((r) => r['status'] == 'Absent').length,
+                                attendanceRecords.length,
+                                Colors.red,
+                              )),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Next class info - FIXED LAYOUT
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: currentGradient.first.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: currentGradient.first.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.school_rounded,
+                                    color: currentGradient.first,
+                                    size: 16,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    nextClassInfo,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey.shade800,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 2)),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: currentGradient.first,
+                                    minimumSize: Size.zero,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text('→', style: TextStyle(fontSize: 16)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ============ COURSES & MARKS GRID - FIXED ============
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Courses Card
+                      Expanded(
+                        child: _buildGlowingCard(
+                          icon: Icons.book_rounded,
+                          title: 'Courses',
+                          count: enrolledCourses.length.toString(),
+                          color: Colors.purple,
+                          gradient: [Colors.purple.shade50, Colors.purple.shade100.withOpacity(0.3)],
+                          child: enrolledCourses.isEmpty
+                              ? _buildEmptyState('No courses', Icons.book_outlined)
+                              : Column(
+                                  children: [
+                                    ...enrolledCourses.take(2).map((course) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: _buildCourseTile(course, Colors.purple),
+                                    )),
+                                    
+                                    if (enrolledCourses.length > 2)
+                                      Center(
+                                        child: TextButton(
+                                          onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 1)),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            minimumSize: Size.zero,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: Text(
+                                            '+${enrolledCourses.length - 2} more',
+                                            style: TextStyle(fontSize: 12, color: Colors.purple.shade700),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Marks Card
+                      Expanded(
+                        child: _buildGlowingCard(
+                          icon: Icons.emoji_events_rounded,
+                          title: 'Top',
+                          count: averageMarks.toStringAsFixed(0),
+                          color: Colors.orange,
+                          gradient: [Colors.orange.shade50, Colors.orange.shade100.withOpacity(0.3)],
+                          child: marks.isEmpty
+                              ? _buildEmptyState('No marks', Icons.analytics_outlined)
+                              : Column(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade50,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.star_rounded,
+                                        size: 32,
+                                        color: Colors.amber.shade700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _shortCourseCode(topPerformingCourse),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Best',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.insights_rounded, size: 14, color: Colors.orange),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            averageMarks.toStringAsFixed(0),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.orange.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ============ TASKS SECTION - FIXED ============
+                  if (todos.where((t) => t['is_completed'] == false).isNotEmpty) ...[
+                    _buildGlowingCard(
+                      icon: Icons.task_alt_rounded,
+                      title: 'Tasks',
+                      count: '$pendingTasksCount pending',
+                      color: Colors.green,
+                      gradient: [Colors.green.shade50, Colors.teal.shade50],
+                      child: Column(
+                        children: [
+                          ...todos.where((t) => t['is_completed'] == false).take(3).map((todo) {
+                            final dueDate = DateTime.parse(todo['due_date']);
+                            final isUrgent = dueDate.difference(DateTime.now()).inDays <= 1;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isUrgent ? Colors.red.shade200 : Colors.green.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: (isUrgent ? Colors.red : Colors.green).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      isUrgent ? Icons.priority_high_rounded : Icons.task_alt_rounded,
+                                      color: isUrgent ? Colors.red.shade700 : Colors.green.shade700,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          todo['title'],
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          _formatDate(dueDate),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isUrgent ? Colors.red.shade700 : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Checkbox(
+                                    value: todo['is_completed'] ?? false,
+                                    onChanged: (value) => _toggleTodoComplete(todo['id'], value!),
+                                    shape: const CircleBorder(),
+                                    activeColor: Colors.green,
+                                    visualDensity: VisualDensity.compact,
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          const SizedBox(height: 4),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: _openTodoPage,
+                              icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                              label: const Text('Manage', style: TextStyle(fontSize: 12)),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.green.shade700,
+                                minimumSize: Size.zero,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ============ QUICK ACTIONS ============
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Quick Actions',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _buildActionButton(
+                            icon: Icons.calendar_month_rounded,
+                            label: 'Attendance',
+                            color: Colors.blue,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 2)),
+                            ),
+                          )),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildActionButton(
+                            icon: Icons.book_rounded,
+                            label: 'Courses',
+                            color: Colors.purple,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 1)),
+                            ),
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _buildActionButton(
+                            icon: Icons.grade_rounded,
+                            label: 'Marks',
+                            color: Colors.orange,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 3)),
+                            ),
+                          )),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildActionButton(
+                            icon: Icons.task_rounded,
+                            label: 'Tasks',
+                            color: Colors.green,
+                            onTap: _openTodoPage,
+                          )),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 30),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== HELPER FUNCTIONS ====================
+  
+  String _shortDepartment(String dept) {
+    if (dept.length > 10) {
+      return dept.split(' ').map((e) => e[0]).take(2).join('');
+    }
+    return dept;
+  }
+
+  String _shortCourseCode(String code) {
+    if (code.length > 8) {
+      return '${code.substring(0, 6)}...';
+    }
+    return code;
+  }
+
+  // ==================== HELPER WIDGETS ====================
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: currentGradient,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TweenAnimationBuilder(
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(seconds: 2),
+                  curve: Curves.elasticOut,
+                  builder: (context, double value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.school_rounded,
+                          size: 70,
+                          color: Colors.white,
+                        ),
                       ),
                     );
                   },
-                  icon: const Icon(Icons.arrow_forward, size: 16),
-                  label: const Text('View All'),
+                ),
+                const SizedBox(height: 30),
+                Text(
+                  _getTimeBasedGreeting(),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Loading your dashboard...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          // Courses List (limited to 3)
-          ...enrolledCourses.take(3).map((course) {
-            return _buildCourseListItem(course);
-          }),
-
-          if (enrolledCourses.length > 3)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: Text(
-                  '+ ${enrolledCourses.length - 3} more courses',
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w500,
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.red.shade400, Colors.orange.shade400],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.wifi_off_rounded,
+                      size: 70,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCourseListItem(Map<String, dynamic> course) {
-    return ListTile(
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.book,
-          color: Colors.blue,
-          size: 24,
-        ),
-      ),
-      title: Text(
-        course['course_name']?.toString() ?? 'Course',
-        style: const TextStyle(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        course['course_code']?.toString() ?? 'Code',
-        style: const TextStyle(color: Colors.grey),
-      ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const NavigationPage(initialIndex: 1),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRecentActivities() {
-    final List<Widget> sections = [];
-
-    // Add attendance section
-    if (attendanceRecords.isNotEmpty) {
-      sections.add(_buildRecentAttendance());
-    }
-
-    // Add materials section
-    if (recentMaterials.isNotEmpty) {
-      sections.add(_buildRecentMaterials());
-    }
-
-    // Add marks section
-    if (marks.isNotEmpty) {
-      sections.add(_buildRecentMarks());
-    }
-
-    if (sections.isEmpty) {
-      return _buildEmptySection(
-        icon: Icons.history,
-        title: 'No Recent Activity',
-        subtitle: 'Activities will appear here',
-      );
-    }
-
-    return Column(children: sections);
-  }
-
-  Widget _buildRecentAttendance() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Attendance',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          ...attendanceRecords.map((record) {
-            return _buildAttendanceItem(record);
-          }),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NavigationPage(initialIndex: 2),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Connection Error',
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.calendar_today, size: 16),
-                label: const Text('View Full Attendance'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAttendanceItem(Map<String, dynamic> record) {
-    final status = record['status']?.toString() ?? 'Unknown';
-    final date = record['date']?.toString() ?? '';
-    final course = record['course_code']?.toString() ?? '';
-
-    Color statusColor = Colors.grey;
-    IconData statusIcon = Icons.circle;
-
-    if (status == 'Present') {
-      statusColor = Colors.green;
-      statusIcon = Icons.check_circle;
-    } else if (status == 'Absent') {
-      statusColor = Colors.red;
-      statusIcon = Icons.cancel;
-    } else if (status == 'Late') {
-      statusColor = Colors.orange;
-      statusIcon = Icons.schedule;
-    }
-
-    return ListTile(
-      leading: Icon(statusIcon, color: statusColor),
-      title: Text(course),
-      subtitle: Text(date),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          status,
-          style: TextStyle(
-            color: statusColor,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentMaterials() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Materials',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          ...recentMaterials.map((material) {
-            return _buildMaterialItem(material);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMaterialItem(Map<String, dynamic> material) {
-    final type = material['material_type'] ?? 'file';
-    final title = material['title'] ?? 'Untitled';
-    final course = material['course_name'] ?? material['course_code'] ?? '';
-    final date = material['created_at']?.toString().substring(0, 10) ?? '';
-
-    IconData icon;
-    Color color;
-
-    switch (type) {
-      case 'announcement':
-        icon = Icons.announcement;
-        color = Colors.green;
-        break;
-      case 'assignment':
-        icon = Icons.assignment;
-        color = Colors.orange;
-        break;
-      default:
-        icon = Icons.insert_drive_file;
-        color = Colors.blue;
-    }
-
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(title),
-      subtitle: Text('$course • $date'),
-      trailing: const Icon(Icons.download, color: Colors.blue),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const NavigationPage(initialIndex: 1),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRecentMarks() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Marks',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          ...marks.take(2).map((mark) {
-            return _buildMarkItem(mark);
-          }),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NavigationPage(initialIndex: 3),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Unable to load your data.\nPlease check your connection.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.bar_chart, size: 16),
-                label: const Text('View All Marks'),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: loadAllStudentData,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red.shade400,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMarkItem(Map<String, dynamic> mark) {
-    final course = mark['course_code']?.toString() ?? 'Course';
-    final total = (mark['final_exam'] ?? 0) +
-        (mark['mid'] ?? 0) +
-        (mark['ct1'] ?? 0) +
-        (mark['ct2'] ?? 0) +
-        (mark['assignment'] ?? 0) +
-        (mark['attendance'] ?? 0);
-
-    return ListTile(
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.grade,
-          color: Colors.orange,
-        ),
-      ),
-      title: Text(course),
-      subtitle: Text('Total Marks: $total'),
-      trailing: Text(
-        '${(total / 110 * 100).toStringAsFixed(1)}%',
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.blue,
         ),
       ),
     );
   }
 
-  Widget _buildQuickLinks() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Access',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+  Widget _buildDrawer() {
+    return Drawer(
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+      ),
+      child: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: currentGradient,
+                ),
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                    ),
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white,
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold,
+                          color: currentGradient.first,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      'ID: ${studentId.isEmpty ? "N/A" : studentId}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.school,
-                  label: 'Courses',
-                  color: Colors.blue,
-                  index: 1,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  _buildDrawerTile(
+                    icon: Icons.task_alt_rounded,
+                    label: 'My Tasks',
+                    count: pendingTasksCount,
+                    color: Colors.green,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openTodoPage();
+                    },
+                  ),
+                  _buildDrawerTile(
+                    icon: Icons.person_rounded,
+                    label: 'Profile',
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showStudentDetails();
+                    },
+                  ),
+                  _buildDrawerTile(
+                    icon: Icons.settings_rounded,
+                    label: 'Settings',
+                    color: Colors.grey,
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Settings coming soon!'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 32, indent: 20, endIndent: 20),
+                  _buildDrawerTile(
+                    icon: Icons.logout_rounded,
+                    label: 'Logout',
+                    color: Colors.red,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _logout();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Version 1.0.0',
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 11,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.calendar_today,
-                  label: 'Attendance',
-                  color: Colors.green,
-                  index: 2,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.bar_chart,
-                  label: 'Marks',
-                  color: Colors.orange,
-                  index: 3,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.download,
-                  label: 'Materials',
-                  color: Colors.purple,
-                  index: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildQuickLinkButton({
+  Widget _buildDrawerTile({
     required IconData icon,
     required String label,
     required Color color,
-    required int index,
+    VoidCallback? onTap,
+    int? count,
   }) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NavigationPage(initialIndex: index),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.all(20),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
-          children: [
-            Icon(icon, size: 30, color: color),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
         ),
       ),
+      trailing: count != null && count > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            )
+          : const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+      onTap: onTap,
+      minLeadingWidth: 0,
     );
   }
 
-  Widget _buildEmptySection({
+  Widget _buildGlowingCard({
     required IconData icon,
     required String title,
-    required String subtitle,
+    required String count,
+    required Color color,
+    required List<Color> gradient,
+    required Widget child,
   }) {
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(30),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
+            color: color.withOpacity(0.1),
+            blurRadius: 15,
             offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 60, color: Colors.grey.shade400),
-          const SizedBox(height: 15),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: gradient,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  count,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseTile(Map<String, dynamic> course, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Text(
+              course['course_code']?.toString().substring(0, 3) ?? 'CSE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ),
-          const SizedBox(height: 5),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _shortCourseName(course['course_name'] ?? 'Course'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                course['course_code'] ?? '',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _shortCourseName(String name) {
+    if (name.length > 20) {
+      return '${name.substring(0, 18)}...';
+    }
+    return name;
+  }
+
+  Widget _buildStatusBar(String label, int count, int total, Color color) {
+    double percentage = total > 0 ? (count / total * 100) : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${percentage.toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: percentage / 100,
+            backgroundColor: color.withOpacity(0.1),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 40,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 8),
           Text(
-            subtitle,
-            textAlign: TextAlign.center,
+            message,
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: Colors.grey.shade600,
+              fontSize: 12,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.8)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showStudentDetails() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        titlePadding: const EdgeInsets.all(20),
+        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: currentGradient,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.person_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildProfileDetailTile('Name', name, Icons.badge_rounded),
+            _buildProfileDetailTile('ID', studentId, Icons.qr_code_scanner_rounded),
+            _buildProfileDetailTile('Department', department, Icons.school_rounded),
+            _buildProfileDetailTile('Semester', semester, Icons.grade_rounded),
+            _buildProfileDetailTile('Email', email, Icons.email_rounded),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade700,
+            ),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileDetailTile(String label, String value, IconData icon) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: Colors.grey.shade700),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                Text(
+                  value.isNotEmpty ? value : 'Not set',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleTodoComplete(int id, bool value) async {
+    await SupabaseConnector.markTodoCompleted(id, value);
+    await loadAllStudentData();
+  }
+
+  String _getTimeBasedGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]}';
   }
 }
