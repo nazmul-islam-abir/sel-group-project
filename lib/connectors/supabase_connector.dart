@@ -25,30 +25,12 @@ class SupabaseConnector {
   }
 
   /// 📚 Fetch enrolled courses for a student
-<<<<<<< HEAD
-  /// Now using the enrollments table
-  static Future<List<Map<String, dynamic>>> getEnrolledCourses(String studentId) async {
-    try {
-      final response = await _client
-          .from('enrollments')
-          .select('''
-            course_code,
-            course_name,
-            status,
-            enrollment_date
-          ''')
-          .eq('student_id', studentId)
-          .eq('status', 'active')
-          .order('enrollment_date', ascending: false);
-      
-=======
   static Future<List<Map<String, dynamic>>> getEnrolledCourses(String studentId) async {
     try {
       final response = await _client
           .from('enrolled_courses')
           .select()
           .eq('student_id', studentId);
->>>>>>> origin/main
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print("Error getting enrolled courses: $e");
@@ -56,56 +38,6 @@ class SupabaseConnector {
     }
   }
 
-<<<<<<< HEAD
-  /// 📚 Get all enrollments for a student (including dropped/completed)
-  static Future<List<Map<String, dynamic>>> getAllEnrollments(String studentId) async {
-    try {
-      final response = await _client
-          .from('enrollments')
-          .select()
-          .eq('student_id', studentId)
-          .order('enrollment_date', ascending: false);
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      print("Error getting all enrollments: $e");
-      return [];
-    }
-  }
-
-  /// 📝 Enroll a student in a course
-  static Future<bool> enrollStudent(String studentId, String courseCode, String courseName) async {
-    try {
-      await _client.from('enrollments').insert({
-        'student_id': studentId,
-        'course_code': courseCode,
-        'course_name': courseName,
-        'status': 'active',
-        'enrollment_date': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (e) {
-      print("Error enrolling student: $e");
-      return false;
-    }
-  }
-
-  /// 🔄 Update enrollment status
-  static Future<bool> updateEnrollmentStatus(int enrollmentId, String newStatus) async {
-    try {
-      await _client
-          .from('enrollments')
-          .update({'status': newStatus})
-          .eq('id', enrollmentId);
-      return true;
-    } catch (e) {
-      print("Error updating enrollment status: $e");
-      return false;
-    }
-  }
-
-=======
->>>>>>> origin/main
   static Future<List<Map<String, dynamic>>> getCourseMaterials(String courseCode) async {
     try {
       final response = await _client
@@ -113,10 +45,6 @@ class SupabaseConnector {
           .select()
           .eq('course_code', courseCode)
           .order('created_at', ascending: false);
-<<<<<<< HEAD
-      
-=======
->>>>>>> origin/main
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print("Error fetching course materials: $e");
@@ -173,7 +101,6 @@ class SupabaseConnector {
     }
   }
 
-<<<<<<< HEAD
   /// ============== TODO FUNCTIONS ==============
 
   static Future<List<Map<String, dynamic>>> getMyTodos(String studentId) async {
@@ -225,8 +152,6 @@ class SupabaseConnector {
     }
   }
 
-=======
->>>>>>> origin/main
   /// ==================== TEACHER METHODS ====================
 
   /// 👨‍🏫 Get teacher information
@@ -467,8 +392,6 @@ class SupabaseConnector {
       rethrow;
     }
   }
-<<<<<<< HEAD
-=======
 
   /// 📥 Get all materials for a course
   static Future<List<Map<String, dynamic>>> getCourseMaterialsWithFiles(String courseCode) async {
@@ -527,5 +450,4 @@ class SupabaseConnector {
       return [];
     }
   }
->>>>>>> origin/main
 }
