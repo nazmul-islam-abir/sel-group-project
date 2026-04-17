@@ -83,6 +83,7 @@ class _MyStudentState extends State<MyStudent> {
       final dateB = b['created_at']?.toString() ?? '';
       return dateB.compareTo(dateA);
     });
+<<<<<<< HEAD
     
     if (recentMaterials.length > 3) {
       recentMaterials = recentMaterials.take(3).toList();
@@ -128,6 +129,8 @@ class _MyStudentState extends State<MyStudent> {
     }
     
     return count > 0 ? total / count : 0.0;
+=======
+>>>>>>> origin/main
   }
 
   @override
@@ -353,6 +356,7 @@ class _MyStudentState extends State<MyStudent> {
               ],
             ),
           ),
+<<<<<<< HEAD
           ...enrolledCourses.take(3).map((course) => _buildCourseListItem(course)).toList(),
           if (enrolledCourses.length > 3)
             Padding(
@@ -468,10 +472,14 @@ class _MyStudentState extends State<MyStudent> {
           borderRadius: BorderRadius.circular(15),
         ),
         child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w500)),
+=======
+        ),
+>>>>>>> origin/main
       ),
     );
   }
 
+<<<<<<< HEAD
   Widget _buildRecentMaterials() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -552,6 +560,70 @@ class _MyStudentState extends State<MyStudent> {
                 },
                 icon: const Icon(Icons.bar_chart, size: 16),
                 label: const Text('View All Marks'),
+=======
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.red.shade400, Colors.orange.shade400],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.wifi_off_rounded,
+                      size: 70,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Connection Error',
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Unable to load your data.\nPlease check your connection.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: loadAllStudentData,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red.shade400,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ],
+>>>>>>> origin/main
               ),
             ),
           ),

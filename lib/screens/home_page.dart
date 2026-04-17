@@ -1,7 +1,8 @@
 // home_page.dart
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/student/navigation_page.dart';
-import 'package:myapp/screens/teacher/teacher_navigation_page.dart'; // You'll create this
+import 'package:myapp/screens/Admin/Admin_Page.dart';  // Import your Admin page
+import 'package:myapp/screens/teacher/teacher_navigation_page.dart'; // Teacher page
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -32,7 +33,9 @@ class HomePage extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => NavigationPage()),
+                    MaterialPageRoute(
+                      builder: (context) => const NavigationPage(),
+                    ),
                   );
                 },
                 child: Row(
@@ -45,8 +48,9 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 30),
-            
+
+            const SizedBox(height: 20),
+
             // Teacher Button
             SizedBox(
               width: 200,
@@ -67,6 +71,31 @@ class HomePage extends StatelessWidget {
                     Text("Teacher Portal"),
                     SizedBox(width: 20),
                     Icon(Icons.school),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Admin Button
+            SizedBox(
+              width: 200,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MyAdmin(),
+                    ),
+                  );
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Text("Admin Page"),
+                    SizedBox(width: 20),
+                    Icon(Icons.admin_panel_settings),
                   ],
                 ),
               ),

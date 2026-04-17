@@ -25,6 +25,7 @@ class SupabaseConnector {
   }
 
   /// 📚 Fetch enrolled courses for a student
+<<<<<<< HEAD
   /// Now using the enrollments table
   static Future<List<Map<String, dynamic>>> getEnrolledCourses(String studentId) async {
     try {
@@ -40,6 +41,14 @@ class SupabaseConnector {
           .eq('status', 'active')
           .order('enrollment_date', ascending: false);
       
+=======
+  static Future<List<Map<String, dynamic>>> getEnrolledCourses(String studentId) async {
+    try {
+      final response = await _client
+          .from('enrolled_courses')
+          .select()
+          .eq('student_id', studentId);
+>>>>>>> origin/main
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print("Error getting enrolled courses: $e");
@@ -47,6 +56,7 @@ class SupabaseConnector {
     }
   }
 
+<<<<<<< HEAD
   /// 📚 Get all enrollments for a student (including dropped/completed)
   static Future<List<Map<String, dynamic>>> getAllEnrollments(String studentId) async {
     try {
@@ -94,6 +104,8 @@ class SupabaseConnector {
     }
   }
 
+=======
+>>>>>>> origin/main
   static Future<List<Map<String, dynamic>>> getCourseMaterials(String courseCode) async {
     try {
       final response = await _client
@@ -101,7 +113,10 @@ class SupabaseConnector {
           .select()
           .eq('course_code', courseCode)
           .order('created_at', ascending: false);
+<<<<<<< HEAD
       
+=======
+>>>>>>> origin/main
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print("Error fetching course materials: $e");
@@ -141,8 +156,8 @@ class SupabaseConnector {
   
   /// 📅 Get attendance by course
   static Future<List<Map<String, dynamic>>> getCourseAttendance(
-      String studentId, 
-      String courseCode
+    String studentId, 
+    String courseCode
   ) async {
     try {
       final response = await _client
@@ -158,6 +173,7 @@ class SupabaseConnector {
     }
   }
 
+<<<<<<< HEAD
   /// ============== TODO FUNCTIONS ==============
 
   static Future<List<Map<String, dynamic>>> getMyTodos(String studentId) async {
@@ -209,6 +225,8 @@ class SupabaseConnector {
     }
   }
 
+=======
+>>>>>>> origin/main
   /// ==================== TEACHER METHODS ====================
 
   /// 👨‍🏫 Get teacher information
@@ -449,4 +467,65 @@ class SupabaseConnector {
       rethrow;
     }
   }
+<<<<<<< HEAD
+=======
+
+  /// 📥 Get all materials for a course
+  static Future<List<Map<String, dynamic>>> getCourseMaterialsWithFiles(String courseCode) async {
+    try {
+      final response = await _client
+          .from('course_materials')
+          .select()
+          .eq('course_code', courseCode)
+          .order('created_at', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting course materials: $e');
+      return [];
+    }
+  }
+
+  /// 🗑️ Delete a material (file and database record)
+  static Future<void> deleteMaterial(int materialId, {String? fileUrl}) async {
+    try {
+      // Delete from database first
+      await _client
+          .from('course_materials')
+          .delete()
+          .eq('id', materialId);
+      
+      // If there's a file URL, try to delete from storage
+      if (fileUrl != null && fileUrl.isNotEmpty) {
+        // Extract path from URL
+        final uri = Uri.parse(fileUrl);
+        final path = uri.pathSegments.last;
+        
+        await _client.storage
+            .from('course-materials')
+            .remove([path]);
+      }
+      
+      print('✅ Material deleted successfully');
+      
+    } catch (e) {
+      print('❌ Error deleting material: $e');
+      rethrow;
+    }
+  }
+
+  /// 📋 Get list of files in storage for a course
+  static Future<List<String>> getCourseFiles(String courseCode) async {
+    try {
+      final response = await _client.storage
+          .from('course-materials')
+          .list(path: courseCode);
+      
+      return response.map((file) => file.name).toList();
+    } catch (e) {
+      print('Error listing course files: $e');
+      return [];
+    }
+  }
+>>>>>>> origin/main
 }
