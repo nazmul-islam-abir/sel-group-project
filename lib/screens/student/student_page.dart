@@ -1,7 +1,8 @@
-// student_page.dart - Comprehensive Student Dashboard
+// student_page.dart - FIXED, NO OVERFLOW ERRORS
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'navigation_page.dart';
+import 'todo_page.dart';
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
@@ -10,59 +11,113 @@ class MyStudent extends StatefulWidget {
   State<MyStudent> createState() => _MyStudentState();
 }
 
-class _MyStudentState extends State<MyStudent> {
-  // ================= STUDENT DATA =================
-  Map<String, dynamic> studentInfo = {};
+class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMixin {
+  // ==================== STUDENT DATA ====================
+  String name = '';
+  String studentId = '';
+  String semester = '';
+  String department = '';
+  String email = '';
+  
+  // REAL DATA
   List<Map<String, dynamic>> enrolledCourses = [];
   List<Map<String, dynamic>> attendanceRecords = [];
   List<Map<String, dynamic>> marks = [];
-  List<Map<String, dynamic>> recentMaterials = [];
+  List<Map<String, dynamic>> todos = [];
   
+  // DYNAMIC CALCULATIONS
+  int pendingTasksCount = 0;
+  double overallAttendance = 0.0;
+  double averageMarks = 0.0;
+  String topPerformingCourse = '';
+  String weakestCourse = '';
+  String attendanceStreak = '';
+  String nextClassInfo = '';
+  
+  // UI STATES
   bool isLoading = true;
   bool hasError = false;
-  String errorMessage = '';
+  late AnimationController _animationController;
+  
+  // RANDOM ELEMENTS
+  final List<List<Color>> headerGradients = [
+    [const Color(0xFF4158D0), const Color(0xFFC850C0)],
+    [const Color(0xFF0093E9), const Color(0xFF80D0C7)],
+    [const Color(0xFF8EC5FC), const Color(0xFFE0C3FC)],
+    [const Color(0xFFFBAB7E), const Color(0xFFF7CE68)],
+    [const Color(0xFF85FFBD), const Color(0xFFFFFB7D)],
+    [const Color(0xFFA9C9FF), const Color(0xFFFFBBEC)],
+    [const Color(0xFFFA8BFF), const Color(0xFF2BD2FF)],
+  ];
+  
+  final List<Map<String, String>> quotes = [
+    {'icon': '📚', 'text': 'Keep learning,'},
+    {'icon': '⚡', 'text': 'Power level:'},
+    {'icon': '🎯', 'text': 'Target:'},
+    {'icon': '💫', 'text': 'Progress:'},
+    {'icon': '🌟', 'text': 'Top:'},
+  ];
+
+  List<Color> currentGradient = [Colors.blue, Colors.purple];
+  Map<String, String> currentQuote = {};
 
   @override
   void initState() {
     super.initState();
+    _randomizeTheme();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     loadAllStudentData();
   }
 
-  /// 🔄 Load ALL student data from Supabase
+  void _randomizeTheme() {
+    setState(() {
+      currentGradient = (headerGradients..shuffle()).first;
+      currentQuote = (quotes..shuffle()).first;
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // ==================== LOAD REAL DATA ====================
   Future<void> loadAllStudentData() async {
     try {
-      setState(() {
-        isLoading = true;
-        hasError = false;
+      setState(() { 
+        isLoading = true; 
+        hasError = false; 
       });
 
-      // 1. Get student basic info
-      studentInfo = await SupabaseConnector.getStudent();
-      final studentId = studentInfo['student_id']?.toString() ?? '';
+      final studentData = await SupabaseConnector.getStudent();
+      
+      setState(() {
+        name = studentData['name']?.toString() ?? 'Student';
+        studentId = studentData['student_id']?.toString() ?? '';
+        semester = studentData['semester']?.toString() ?? '';
+        department = studentData['department']?.toString() ?? '';
+        email = studentData['email']?.toString() ?? '';
+      });
 
-      // 2. Get enrolled courses
-      enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
-
-      // 3. Get attendance records (limited to 5 for dashboard)
-      attendanceRecords = await SupabaseConnector.getAttendance(studentId);
-      if (attendanceRecords.length > 5) {
-        attendanceRecords = attendanceRecords.take(5).toList();
+      if (studentId.isNotEmpty) {
+        enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
+        attendanceRecords = await SupabaseConnector.getAttendance(studentId);
+        marks = await SupabaseConnector.getStudentMarks(studentId);
+        todos = await SupabaseConnector.getMyTodos(studentId);
+        
+        calculateStats();
       }
 
-      // 4. Get marks
-      marks = await SupabaseConnector.getStudentMarks(studentId);
-
-      // 5. Get recent materials from all courses
-      await loadRecentMaterials(enrolledCourses);
-
-      setState(() => isLoading = false);
+      _animationController.forward();
+      
+      setState(() { isLoading = false; });
     } catch (error) {
-      print("Error loading student data: $error");
-      setState(() {
-        isLoading = false;
-        hasError = true;
-        errorMessage = error.toString();
-      });
+      print("Error: $error");
+      setState(() { isLoading = false; hasError = true; });
     }
   }
 
@@ -130,7 +185,7 @@ class _MyStudentState extends State<MyStudent> {
       ];
       
       double courseTotal = markValues
-          .whereType<num>()
+          .where((value) => value is num)
           .map((value) => value.toDouble())
           .fold(0.0, (sum, value) => sum + value);
       
@@ -154,13 +209,15 @@ class _MyStudentState extends State<MyStudent> {
     );
   }
 
-  Widget _buildBody() {
+  // ==================== BUILD ====================
+  @override
+  Widget build(BuildContext context) {
     if (isLoading) {
-      return _buildLoading();
+      return _buildLoadingScreen();
     }
 
     if (hasError) {
-      return _buildError();
+      return _buildErrorScreen();
     }
 
     return RefreshIndicator(
@@ -490,7 +547,7 @@ class _MyStudentState extends State<MyStudent> {
           // Courses List (limited to 3)
           ...enrolledCourses.take(3).map((course) {
             return _buildCourseListItem(course);
-          }),
+          }).toList(),
 
           if (enrolledCourses.length > 3)
             Padding(
@@ -572,21 +629,19 @@ class _MyStudentState extends State<MyStudent> {
         subtitle: 'Activities will appear here',
       );
     }
-
-    return Column(children: sections);
+    return code;
   }
 
-  Widget _buildRecentAttendance() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+  // ==================== HELPER WIDGETS ====================
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: currentGradient,
           ),
         ],
       ),
@@ -606,7 +661,7 @@ class _MyStudentState extends State<MyStudent> {
 
           ...attendanceRecords.map((record) {
             return _buildAttendanceItem(record);
-          }),
+          }).toList(),
 
           Padding(
             padding: const EdgeInsets.all(16),
@@ -630,50 +685,83 @@ class _MyStudentState extends State<MyStudent> {
     );
   }
 
-  Widget _buildAttendanceItem(Map<String, dynamic> record) {
-    final status = record['status']?.toString() ?? 'Unknown';
-    final date = record['date']?.toString() ?? '';
-    final course = record['course_code']?.toString() ?? '';
-
-    Color statusColor = Colors.grey;
-    IconData statusIcon = Icons.circle;
-
-    if (status == 'Present') {
-      statusColor = Colors.green;
-      statusIcon = Icons.check_circle;
-    } else if (status == 'Absent') {
-      statusColor = Colors.red;
-      statusIcon = Icons.cancel;
-    } else if (status == 'Late') {
-      statusColor = Colors.orange;
-      statusIcon = Icons.schedule;
-    }
-
-    return ListTile(
-      leading: Icon(statusIcon, color: statusColor),
-      title: Text(course),
-      subtitle: Text(date),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      body: Container(
         decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(15),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.red.shade400, Colors.orange.shade400],
+          ),
         ),
-        child: Text(
-          status,
-          style: TextStyle(
-            color: statusColor,
-            fontWeight: FontWeight.w500,
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.wifi_off_rounded,
+                      size: 70,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Connection Error',
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Unable to load your data.\nPlease check your connection.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: loadAllStudentData,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red.shade400,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRecentMaterials() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
+  Widget _buildDrawer() {
+    return Drawer(
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+      ),
+      child: Container(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
@@ -700,61 +788,75 @@ class _MyStudentState extends State<MyStudent> {
 
           ...recentMaterials.map((material) {
             return _buildMaterialItem(material);
-          }),
+          }).toList(),
         ],
       ),
     );
   }
 
-  Widget _buildMaterialItem(Map<String, dynamic> material) {
-    final type = material['material_type'] ?? 'file';
-    final title = material['title'] ?? 'Untitled';
-    final course = material['course_name'] ?? material['course_code'] ?? '';
-    final date = material['created_at']?.toString().substring(0, 10) ?? '';
-
-    IconData icon;
-    Color color;
-
-    switch (type) {
-      case 'announcement':
-        icon = Icons.announcement;
-        color = Colors.green;
-        break;
-      case 'assignment':
-        icon = Icons.assignment;
-        color = Colors.orange;
-        break;
-      default:
-        icon = Icons.insert_drive_file;
-        color = Colors.blue;
-    }
-
+  Widget _buildDrawerTile({
+    required IconData icon,
+    required String label,
+    required Color color,
+    VoidCallback? onTap,
+    int? count,
+  }) {
     return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(title),
-      subtitle: Text('$course • $date'),
-      trailing: const Icon(Icons.download, color: Colors.blue),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const NavigationPage(initialIndex: 1),
-          ),
-        );
-      },
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      trailing: count != null && count > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            )
+          : const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+      onTap: onTap,
+      minLeadingWidth: 0,
     );
   }
 
-  Widget _buildRecentMarks() {
+  Widget _buildGlowingCard({
+    required IconData icon,
+    required String title,
+    required String count,
+    required Color color,
+    required List<Color> gradient,
+    required Widget child,
+  }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
+            color: color.withOpacity(0.1),
+            blurRadius: 15,
             offset: const Offset(0, 5),
           ),
         ],
@@ -775,7 +877,7 @@ class _MyStudentState extends State<MyStudent> {
 
           ...marks.take(2).map((mark) {
             return _buildMarkItem(mark);
-          }),
+          }).toList(),
 
           Padding(
             padding: const EdgeInsets.all(16),
@@ -799,189 +901,292 @@ class _MyStudentState extends State<MyStudent> {
     );
   }
 
-  Widget _buildMarkItem(Map<String, dynamic> mark) {
-    final course = mark['course_code']?.toString() ?? 'Course';
-    final total = (mark['final_exam'] ?? 0) +
-        (mark['mid'] ?? 0) +
-        (mark['ct1'] ?? 0) +
-        (mark['ct2'] ?? 0) +
-        (mark['assignment'] ?? 0) +
-        (mark['attendance'] ?? 0);
-
-    return ListTile(
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.grade,
-          color: Colors.orange,
-        ),
-      ),
-      title: Text(course),
-      subtitle: Text('Total Marks: $total'),
-      trailing: Text(
-        '${(total / 110 * 100).toStringAsFixed(1)}%',
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.blue,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickLinks() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Access',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+  Widget _buildCourseTile(Map<String, dynamic> course, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Text(
+              course['course_code']?.toString().substring(0, 3) ?? 'CSE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.school,
-                  label: 'Courses',
-                  color: Colors.blue,
-                  index: 1,
+              Text(
+                _shortCourseName(course['course_name'] ?? 'Course'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.calendar_today,
-                  label: 'Attendance',
-                  color: Colors.green,
-                  index: 2,
+              Text(
+                course['course_code'] ?? '',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.bar_chart,
-                  label: 'Marks',
-                  color: Colors.orange,
-                  index: 3,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildQuickLinkButton(
-                  icon: Icons.download,
-                  label: 'Materials',
-                  color: Colors.purple,
-                  index: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildQuickLinkButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required int index,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NavigationPage(initialIndex: index),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
+  String _shortCourseName(String name) {
+    if (name.length > 20) {
+      return '${name.substring(0, 18)}...';
+    }
+    return name;
+  }
+
+  Widget _buildStatusBar(String label, int count, int total, Color color) {
+    double percentage = total > 0 ? (count / total * 100) : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, size: 30, color: color),
-            const SizedBox(height: 10),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade700,
                 fontWeight: FontWeight.w500,
               ),
             ),
+            Text(
+              '${percentage.toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
           ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: percentage / 100,
+            backgroundColor: color.withOpacity(0.1),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 40,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.8)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptySection({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+  void _showStudentDetails() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        titlePadding: const EdgeInsets.all(20),
+        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: currentGradient,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.person_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildProfileDetailTile('Name', name, Icons.badge_rounded),
+            _buildProfileDetailTile('ID', studentId, Icons.qr_code_scanner_rounded),
+            _buildProfileDetailTile('Department', department, Icons.school_rounded),
+            _buildProfileDetailTile('Semester', semester, Icons.grade_rounded),
+            _buildProfileDetailTile('Email', email, Icons.email_rounded),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade700,
+            ),
+            child: const Text('Close'),
           ),
         ],
       ),
-      child: Column(
+    );
+  }
+
+  Widget _buildProfileDetailTile(String label, String value, IconData icon) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
         children: [
-          Icon(icon, size: 60, color: Colors.grey.shade400),
-          const SizedBox(height: 15),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Icon(icon, size: 14, color: Colors.grey.shade700),
           ),
-          const SizedBox(height: 5),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade500,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                Text(
+                  value.isNotEmpty ? value : 'Not set',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleTodoComplete(int id, bool value) async {
+    await SupabaseConnector.markTodoCompleted(id, value);
+    await loadAllStudentData();
+  }
+
+  String _getTimeBasedGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]}';
   }
 }
