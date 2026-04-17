@@ -1,8 +1,7 @@
-// student_page.dart - FIXED, NO OVERFLOW ERRORS
+// student_page.dart - FIXED, NO ERRORS
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'navigation_page.dart';
-import 'todo_page.dart';
 
 class MyStudent extends StatefulWidget {
   const MyStudent({super.key});
@@ -11,78 +10,22 @@ class MyStudent extends StatefulWidget {
   State<MyStudent> createState() => _MyStudentState();
 }
 
-class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMixin {
+class _MyStudentState extends State<MyStudent> {
   // ==================== STUDENT DATA ====================
-  String name = '';
-  String studentId = '';
-  String semester = '';
-  String department = '';
-  String email = '';
-  
-  // REAL DATA
+  Map<String, dynamic> studentInfo = {};
   List<Map<String, dynamic>> enrolledCourses = [];
   List<Map<String, dynamic>> attendanceRecords = [];
   List<Map<String, dynamic>> marks = [];
-  List<Map<String, dynamic>> todos = [];
+  List<Map<String, dynamic>> recentMaterials = [];
   
-  // DYNAMIC CALCULATIONS
-  int pendingTasksCount = 0;
-  double overallAttendance = 0.0;
-  double averageMarks = 0.0;
-  String topPerformingCourse = '';
-  String weakestCourse = '';
-  String attendanceStreak = '';
-  String nextClassInfo = '';
-  
-  // UI STATES
   bool isLoading = true;
   bool hasError = false;
-  late AnimationController _animationController;
-  
-  // RANDOM ELEMENTS
-  final List<List<Color>> headerGradients = [
-    [const Color(0xFF4158D0), const Color(0xFFC850C0)],
-    [const Color(0xFF0093E9), const Color(0xFF80D0C7)],
-    [const Color(0xFF8EC5FC), const Color(0xFFE0C3FC)],
-    [const Color(0xFFFBAB7E), const Color(0xFFF7CE68)],
-    [const Color(0xFF85FFBD), const Color(0xFFFFFB7D)],
-    [const Color(0xFFA9C9FF), const Color(0xFFFFBBEC)],
-    [const Color(0xFFFA8BFF), const Color(0xFF2BD2FF)],
-  ];
-  
-  final List<Map<String, String>> quotes = [
-    {'icon': '📚', 'text': 'Keep learning,'},
-    {'icon': '⚡', 'text': 'Power level:'},
-    {'icon': '🎯', 'text': 'Target:'},
-    {'icon': '💫', 'text': 'Progress:'},
-    {'icon': '🌟', 'text': 'Top:'},
-  ];
-
-  List<Color> currentGradient = [Colors.blue, Colors.purple];
-  Map<String, String> currentQuote = {};
+  String errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _randomizeTheme();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
     loadAllStudentData();
-  }
-
-  void _randomizeTheme() {
-    setState(() {
-      currentGradient = (headerGradients..shuffle()).first;
-      currentQuote = (quotes..shuffle()).first;
-    });
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   // ==================== LOAD REAL DATA ====================
@@ -93,31 +36,25 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
         hasError = false; 
       });
 
-      final studentData = await SupabaseConnector.getStudent();
-      
-      setState(() {
-        name = studentData['name']?.toString() ?? 'Student';
-        studentId = studentData['student_id']?.toString() ?? '';
-        semester = studentData['semester']?.toString() ?? '';
-        department = studentData['department']?.toString() ?? '';
-        email = studentData['email']?.toString() ?? '';
-      });
+      studentInfo = await SupabaseConnector.getStudent();
+      final studentId = studentInfo['student_id']?.toString() ?? '';
 
       if (studentId.isNotEmpty) {
         enrolledCourses = await SupabaseConnector.getEnrolledCourses(studentId);
         attendanceRecords = await SupabaseConnector.getAttendance(studentId);
         marks = await SupabaseConnector.getStudentMarks(studentId);
-        todos = await SupabaseConnector.getMyTodos(studentId);
         
-        calculateStats();
+        await loadRecentMaterials(enrolledCourses);
       }
-
-      _animationController.forward();
       
       setState(() { isLoading = false; });
     } catch (error) {
       print("Error: $error");
-      setState(() { isLoading = false; hasError = true; });
+      setState(() { 
+        isLoading = false; 
+        hasError = true; 
+        errorMessage = error.toString();
+      });
     }
   }
 
@@ -129,7 +66,6 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       final courseCode = course['course_code'];
       final materials = await SupabaseConnector.getCourseMaterials(courseCode);
       if (materials.isNotEmpty) {
-        // Add course name to each material
         final materialsWithCourse = materials.map((material) {
           return {
             ...material,
@@ -142,7 +78,6 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       }
     }
     
-    // Sort by date and take only 3 most recent
     recentMaterials.sort((a, b) {
       final dateA = a['created_at']?.toString() ?? '';
       final dateB = b['created_at']?.toString() ?? '';
@@ -174,7 +109,6 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
     int count = 0;
     
     for (var mark in marks) {
-      // Sum all available marks
       List<dynamic> markValues = [
         mark['attendance'] ?? 0,
         mark['assignment'] ?? 0,
@@ -185,7 +119,7 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       ];
       
       double courseTotal = markValues
-          .where((value) => value is num)
+          .whereType<num>()
           .map((value) => value.toDouble())
           .fold(0.0, (sum, value) => sum + value);
       
@@ -209,15 +143,13 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
     );
   }
 
-  // ==================== BUILD ====================
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildBody() {
     if (isLoading) {
-      return _buildLoadingScreen();
+      return _buildLoading();
     }
 
     if (hasError) {
-      return _buildErrorScreen();
+      return _buildError();
     }
 
     return RefreshIndicator(
@@ -226,21 +158,11 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            // ================= PROFILE HEADER =================
             _buildProfileHeader(),
-
-            // ================= QUICK STATS =================
             _buildQuickStats(),
-
-            // ================= ENROLLED COURSES =================
             _buildEnrolledCourses(),
-
-            // ================= RECENT ACTIVITIES =================
             _buildRecentActivities(),
-
-            // ================= QUICK LINKS =================
             _buildQuickLinks(),
-
             const SizedBox(height: 30),
           ],
         ),
@@ -249,19 +171,13 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
   }
 
   Widget _buildLoading() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          Text(
-            'Loading your dashboard...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
-          ),
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('Loading your dashboard...'),
         ],
       ),
     );
@@ -272,19 +188,11 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red,
-          ),
+          const Icon(Icons.error_outline, size: 80, color: Colors.red),
           const SizedBox(height: 20),
           const Text(
             'Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
           ),
           const SizedBox(height: 10),
           Padding(
@@ -323,7 +231,6 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       ),
       child: Column(
         children: [
-          // Profile Avatar
           Container(
             width: 100,
             height: 100,
@@ -332,48 +239,25 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
               color: Colors.white,
               border: Border.all(color: Colors.white, width: 3),
             ),
-            child: const Icon(
-              Icons.person,
-              size: 60,
-              color: Colors.blue,
-            ),
+            child: const Icon(Icons.person, size: 60, color: Colors.blue),
           ),
           const SizedBox(height: 15),
-
-          // Student Name
           Text(
             studentInfo['name']?.toString() ?? 'Student Name',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 5),
-
-          // Student ID
           Text(
             'ID: ${studentInfo['student_id']?.toString() ?? 'N/A'}',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 16,
-            ),
+            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
           ),
           const SizedBox(height: 5),
-
-          // Semester & Department
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildInfoChip(
-                'Semester ${studentInfo['semester']?.toString() ?? 'N/A'}',
-                Icons.school,
-              ),
+              _buildInfoChip('Semester ${studentInfo['semester']?.toString() ?? 'N/A'}', Icons.school),
               const SizedBox(width: 10),
-              _buildInfoChip(
-                studentInfo['department']?.toString() ?? 'Department',
-                Icons.business,
-              ),
+              _buildInfoChip(studentInfo['department']?.toString() ?? 'Department', Icons.business),
             ],
           ),
         ],
@@ -393,13 +277,7 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
         children: [
           Icon(icon, size: 16, color: Colors.white),
           const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
-          ),
+          Text(text, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
       ),
     );
@@ -410,42 +288,17 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          // Courses Stat
-          _buildStatCard(
-            icon: Icons.school,
-            value: enrolledCourses.length.toString(),
-            label: 'Courses',
-            color: Colors.blue,
-          ),
+          _buildStatCard(Icons.school, enrolledCourses.length.toString(), 'Courses', Colors.blue),
           const SizedBox(width: 15),
-
-          // Attendance Stat
-          _buildStatCard(
-            icon: Icons.percent,
-            value: '${overallAttendance.toStringAsFixed(1)}%',
-            label: 'Attendance',
-            color: Colors.green,
-          ),
+          _buildStatCard(Icons.percent, '${overallAttendance.toStringAsFixed(1)}%', 'Attendance', Colors.green),
           const SizedBox(width: 15),
-
-          // Marks Stat
-          _buildStatCard(
-            icon: Icons.bar_chart,
-            value: averageMarks.toStringAsFixed(1),
-            label: 'Avg Marks',
-            color: Colors.orange,
-          ),
+          _buildStatCard(Icons.bar_chart, averageMarks.toStringAsFixed(1), 'Avg Marks', Colors.orange),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
+  Widget _buildStatCard(IconData icon, String value, String label, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(15),
@@ -453,37 +306,16 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
+            BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
           ],
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 30,
-              color: color,
-            ),
+            Icon(icon, size: 30, color: color),
             const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
+            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
+            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ],
         ),
       ),
@@ -492,11 +324,7 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
 
   Widget _buildEnrolledCourses() {
     if (enrolledCourses.isEmpty) {
-      return _buildEmptySection(
-        icon: Icons.school,
-        title: 'No Courses Enrolled',
-        subtitle: 'You haven\'t enrolled in any courses yet',
-      );
+      return _buildEmptySection(Icons.school, 'No Courses Enrolled', 'You haven\'t enrolled in any courses yet');
     }
 
     return Container(
@@ -504,38 +332,20 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with View All button
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'My Courses',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const Text('My Courses', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 TextButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NavigationPage(initialIndex: 1),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 1)));
                   },
                   icon: const Icon(Icons.arrow_forward, size: 16),
                   label: const Text('View All'),
@@ -543,23 +353,12 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
               ],
             ),
           ),
-
-          // Courses List (limited to 3)
-          ...enrolledCourses.take(3).map((course) {
-            return _buildCourseListItem(course);
-          }).toList(),
-
+          ...enrolledCourses.take(3).map((course) => _buildCourseListItem(course)).toList(),
           if (enrolledCourses.length > 3)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Center(
-                child: Text(
-                  '+ ${enrolledCourses.length - 3} more courses',
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                child: Text('+ ${enrolledCourses.length - 3} more courses', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
               ),
             ),
         ],
@@ -572,34 +371,14 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
       leading: Container(
         width: 50,
         height: 50,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.book,
-          color: Colors.blue,
-          size: 24,
-        ),
+        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+        child: const Icon(Icons.book, color: Colors.blue, size: 24),
       ),
-      title: Text(
-        course['course_name']?.toString() ?? 'Course',
-        style: const TextStyle(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        course['course_code']?.toString() ?? 'Code',
-        style: const TextStyle(color: Colors.grey),
-      ),
+      title: Text(course['course_name']?.toString() ?? 'Course', style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(course['course_code']?.toString() ?? 'Code', style: const TextStyle(color: Colors.grey)),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const NavigationPage(initialIndex: 1),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 1)));
       },
     );
   }
@@ -607,73 +386,47 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
   Widget _buildRecentActivities() {
     final List<Widget> sections = [];
 
-    // Add attendance section
     if (attendanceRecords.isNotEmpty) {
       sections.add(_buildRecentAttendance());
     }
 
-    // Add materials section
     if (recentMaterials.isNotEmpty) {
       sections.add(_buildRecentMaterials());
     }
 
-    // Add marks section
     if (marks.isNotEmpty) {
       sections.add(_buildRecentMarks());
     }
 
     if (sections.isEmpty) {
-      return _buildEmptySection(
-        icon: Icons.history,
-        title: 'No Recent Activity',
-        subtitle: 'Activities will appear here',
-      );
+      return _buildEmptySection(Icons.history, 'No Recent Activity', 'Activities will appear here');
     }
-    return code;
+
+    return Column(children: sections);
   }
 
-  // ==================== HELPER WIDGETS ====================
-
-  Widget _buildLoadingScreen() {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: currentGradient,
-          ),
-        ],
+  Widget _buildRecentAttendance() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
             padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Attendance',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: Text('Recent Attendance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
-
-          ...attendanceRecords.map((record) {
-            return _buildAttendanceItem(record);
-          }).toList(),
-
+          ...attendanceRecords.take(3).map((record) => _buildAttendanceItem(record)).toList(),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Center(
               child: TextButton.icon(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NavigationPage(initialIndex: 2),
-                    ),
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 2)));
                 },
                 icon: const Icon(Icons.calendar_today, size: 16),
                 label: const Text('View Full Attendance'),
@@ -685,211 +438,117 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
     );
   }
 
-  Widget _buildErrorScreen() {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.red.shade400, Colors.orange.shade400],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.wifi_off_rounded,
-                      size: 70,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Connection Error',
-                    style: TextStyle(
-                      fontSize: 24,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Unable to load your data.\nPlease check your connection.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: loadAllStudentData,
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Try Again'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.red.shade400,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildAttendanceItem(Map<String, dynamic> record) {
+    final status = record['status']?.toString() ?? 'Unknown';
+    final date = record['date']?.toString() ?? '';
+    final course = record['course_code']?.toString() ?? '';
 
-  Widget _buildDrawer() {
-    return Drawer(
-      elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
-      ),
-      child: Container(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Materials',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+    Color statusColor = Colors.grey;
+    IconData statusIcon = Icons.circle;
 
-          ...recentMaterials.map((material) {
-            return _buildMaterialItem(material);
-          }).toList(),
-        ],
-      ),
-    );
-  }
+    if (status == 'Present') {
+      statusColor = Colors.green;
+      statusIcon = Icons.check_circle;
+    } else if (status == 'Absent') {
+      statusColor = Colors.red;
+      statusIcon = Icons.cancel;
+    } else if (status == 'Late') {
+      statusColor = Colors.orange;
+      statusIcon = Icons.schedule;
+    }
 
-  Widget _buildDrawerTile({
-    required IconData icon,
-    required String label,
-    required Color color,
-    VoidCallback? onTap,
-    int? count,
-  }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Container(
-        padding: const EdgeInsets.all(8),
+      leading: Icon(statusIcon, color: statusColor),
+      title: Text(course),
+      subtitle: Text(date),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          color: statusColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
         ),
-        child: Icon(icon, color: color, size: 20),
+        child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.w500)),
       ),
-      title: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      trailing: count != null && count > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                count > 9 ? '9+' : '$count',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            )
-          : const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
-      onTap: onTap,
-      minLeadingWidth: 0,
     );
   }
 
-  Widget _buildGlowingCard({
-    required IconData icon,
-    required String title,
-    required String count,
-    required Color color,
-    required List<Color> gradient,
-    required Widget child,
-  }) {
+  Widget _buildRecentMaterials() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
             padding: EdgeInsets.all(20),
-            child: Text(
-              'Recent Marks',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: Text('Recent Materials', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
+          ...recentMaterials.map((material) => _buildMaterialItem(material)).toList(),
+        ],
+      ),
+    );
+  }
 
-          ...marks.take(2).map((mark) {
-            return _buildMarkItem(mark);
-          }).toList(),
+  Widget _buildMaterialItem(Map<String, dynamic> material) {
+    final type = material['material_type'] ?? 'file';
+    final title = material['title'] ?? 'Untitled';
+    final course = material['course_name'] ?? material['course_code'] ?? '';
+    final date = material['created_at']?.toString().substring(0, 10) ?? '';
 
+    IconData icon;
+    Color color;
+
+    switch (type) {
+      case 'announcement':
+        icon = Icons.announcement;
+        color = Colors.green;
+        break;
+      case 'assignment':
+        icon = Icons.assignment;
+        color = Colors.orange;
+        break;
+      default:
+        icon = Icons.insert_drive_file;
+        color = Colors.blue;
+    }
+
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title),
+      subtitle: Text('$course • $date'),
+      trailing: const Icon(Icons.download, color: Colors.blue),
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 1)));
+      },
+    );
+  }
+
+  Widget _buildRecentMarks() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text('Recent Marks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          ...marks.take(2).map((mark) => _buildMarkItem(mark)).toList(),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Center(
               child: TextButton.icon(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NavigationPage(initialIndex: 3),
-                    ),
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const NavigationPage(initialIndex: 3)));
                 },
                 icon: const Icon(Icons.bar_chart, size: 16),
                 label: const Text('View All Marks'),
@@ -901,292 +560,101 @@ class _MyStudentState extends State<MyStudent> with SingleTickerProviderStateMix
     );
   }
 
-  Widget _buildCourseTile(Map<String, dynamic> course, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: Text(
-              course['course_code']?.toString().substring(0, 3) ?? 'CSE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildMarkItem(Map<String, dynamic> mark) {
+    final course = mark['course_code']?.toString() ?? 'Course';
+    final total = (mark['final_exam'] ?? 0) +
+        (mark['mid'] ?? 0) +
+        (mark['ct1'] ?? 0) +
+        (mark['ct2'] ?? 0) +
+        (mark['assignment'] ?? 0) +
+        (mark['attendance'] ?? 0);
+
+    return ListTile(
+      leading: Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10)),
+        child: const Icon(Icons.grade, color: Colors.orange),
+      ),
+      title: Text(course),
+      subtitle: Text('Total Marks: $total'),
+      trailing: Text(
+        '${(total / 110 * 100).toStringAsFixed(1)}%',
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue),
+      ),
+    );
+  }
+
+  Widget _buildQuickLinks() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Quick Access', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Row(
             children: [
-              Text(
-                _shortCourseName(course['course_name'] ?? 'Course'),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                course['course_code'] ?? '',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade600,
-                ),
-              ),
+              Expanded(child: _buildQuickLinkButton(Icons.school, 'Courses', Colors.blue, 1)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildQuickLinkButton(Icons.calendar_today, 'Attendance', Colors.green, 2)),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _buildQuickLinkButton(Icons.bar_chart, 'Marks', Colors.orange, 3)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildQuickLinkButton(Icons.download, 'Materials', Colors.purple, 1)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  String _shortCourseName(String name) {
-    if (name.length > 20) {
-      return '${name.substring(0, 18)}...';
-    }
-    return name;
-  }
-
-  Widget _buildStatusBar(String label, int count, int total, Color color) {
-    double percentage = total > 0 ? (count / total * 100) : 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildQuickLinkButton(IconData icon, String label, Color color, int index) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => NavigationPage(initialIndex: index)));
+      },
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        ),
+        child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade700,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Text(
-              '${percentage.toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
+            Icon(icon, size: 30, color: color),
+            const SizedBox(height: 10),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
           ],
         ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: percentage / 100,
-            backgroundColor: color.withOpacity(0.1),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 4,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          '$count',
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildEmptyState(String message, IconData icon) {
-    return Center(
+  Widget _buildEmptySection(IconData icon, String title, String subtitle) {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+      ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 40,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
-          ),
+          Icon(icon, size: 60, color: Colors.grey.shade400),
+          const SizedBox(height: 15),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+          const SizedBox(height: 5),
+          Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500)),
         ],
       ),
     );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.8)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showStudentDetails() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        titlePadding: const EdgeInsets.all(20),
-        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: currentGradient,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.person_rounded, color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Profile',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildProfileDetailTile('Name', name, Icons.badge_rounded),
-            _buildProfileDetailTile('ID', studentId, Icons.qr_code_scanner_rounded),
-            _buildProfileDetailTile('Department', department, Icons.school_rounded),
-            _buildProfileDetailTile('Semester', semester, Icons.grade_rounded),
-            _buildProfileDetailTile('Email', email, Icons.email_rounded),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade700,
-            ),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileDetailTile(String label, String value, IconData icon) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 14, color: Colors.grey.shade700),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                Text(
-                  value.isNotEmpty ? value : 'Not set',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _toggleTodoComplete(int id, bool value) async {
-    await SupabaseConnector.markTodoCompleted(id, value);
-    await loadAllStudentData();
-  }
-
-  String _getTimeBasedGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  }
-
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${date.day} ${months[date.month - 1]}';
   }
 }
