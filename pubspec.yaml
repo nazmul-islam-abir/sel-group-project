@@ -1,0 +1,53 @@
+name: myapp
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Supabase
+  supabase_flutter: ^2.12.0
+  
+  # File picking and images
+  image_picker: ^1.0.4
+  file_picker: ^5.3.3
+  
+  # File handling
+  path_provider: ^2.1.5
+  open_file: ^3.5.11
+  
+  # PDF viewers
+  flutter_pdfview: ^1.4.4
+  syncfusion_flutter_pdfviewer: ^32.2.3
+  
+  # Networking
+  http: ^1.6.0
+  url_launcher: ^6.3.2
+  
+  # UI and Icons
+  cupertino_icons: ^1.0.8
+  cached_network_image: ^3.4.1
+  file_icon: ^1.0.0
+  animated_text_kit: ^4.3.0
+  
+  # State management
+  provider: ^6.1.5+1
+  
+  # Utilities
+  flutter_dotenv: ^6.0.0
+  markdown_widget: ^2.3.2+8
+  google_generative_ai: ^0.4.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
