@@ -1,4 +1,4 @@
-// Complete CRUD (up to sem) - Updated with requested changes
+// Complete CRUD (up to sem) - Updated with teacher assignment and semester for courses
 import 'package:flutter/material.dart';
 import '../../connectors/supabase_connector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -27,6 +27,7 @@ class _MyAdminState extends State<MyAdmin> {
   bool showAddStudentForm = false;
   bool showAddTeacherForm = false;
   bool showAddCourseForm = false;
+  bool showEditCourseForm = false;
 
   //STUDENT CONTROLLERS
   final TextEditingController _studentIdController = TextEditingController();
@@ -37,7 +38,7 @@ class _MyAdminState extends State<MyAdmin> {
   final TextEditingController _studentSemesterController =
       TextEditingController();
 
-  //TEACHER CONTROLLERS - UPDATED with new fields
+  //TEACHER CONTROLLERS
   final TextEditingController _teacherIdController = TextEditingController();
   final TextEditingController _teacherNameController = TextEditingController();
   final TextEditingController _teacherEmailController = TextEditingController();
@@ -52,6 +53,10 @@ class _MyAdminState extends State<MyAdmin> {
   final TextEditingController _courseNameController = TextEditingController();
   final TextEditingController _courseCreditsController =
       TextEditingController();
+  final TextEditingController _courseSemesterController =
+      TextEditingController();
+  String? _selectedTeacherId;
+  Map<String, dynamic>? _editingCourse;
 
   //SEARCH CONTROLLER
   final TextEditingController _searchController = TextEditingController();
@@ -92,9 +97,16 @@ class _MyAdminState extends State<MyAdmin> {
         print("Error loading teachers: $e");
       }
 
-      // Load courses
+      // Load courses with teacher info
       try {
-        final response = await _client.from('courses').select();
+        final response = await _client.from('courses').select('''
+          *,
+          teachers!courses_teacher_id_fkey (
+            teacher_id,
+            name,
+            designation
+          )
+        ''');
         courses = List<Map<String, dynamic>>.from(response);
       } catch (e) {
         print("Error loading courses: $e");
@@ -147,7 +159,7 @@ class _MyAdminState extends State<MyAdmin> {
     }
   }
 
-  //TEACHER OPERATIONS - UPDATED with new fields
+  //TEACHER OPERATIONS
   Future<void> addTeacher() async {
     if (_teacherNameController.text.isEmpty ||
         _teacherIdController.text.isEmpty) {
@@ -192,15 +204,60 @@ class _MyAdminState extends State<MyAdmin> {
     }
 
     try {
-      await _client.from('courses').insert({
+      final Map<String, dynamic> courseData = {
         'course_code': _courseCodeController.text,
         'course_name': _courseNameController.text,
         'credits': int.tryParse(_courseCreditsController.text) ?? 3,
-      });
+        'semester': int.tryParse(_courseSemesterController.text),
+      };
+
+      if (_selectedTeacherId != null && _selectedTeacherId!.isNotEmpty) {
+        courseData['teacher_id'] = _selectedTeacherId;
+      }
+
+      await _client.from('courses').insert(courseData);
       await loadAllAdminData();
       _clearCourseControllers();
-      setState(() => showAddCourseForm = false);
+      setState(() {
+        showAddCourseForm = false;
+        _selectedTeacherId = null;
+      });
       _showSnackBar('Course added successfully', Colors.green);
+    } catch (error) {
+      _showSnackBar('Error: $error', Colors.red);
+    }
+  }
+
+  Future<void> updateCourse() async {
+    if (_courseCodeController.text.isEmpty ||
+        _courseNameController.text.isEmpty) {
+      _showSnackBar('Course code and name are required', Colors.orange);
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> courseData = {
+        'course_name': _courseNameController.text,
+        'credits': int.tryParse(_courseCreditsController.text) ?? 3,
+        'semester': int.tryParse(_courseSemesterController.text),
+      };
+
+      courseData['teacher_id'] = _selectedTeacherId?.isEmpty ?? true
+          ? null
+          : _selectedTeacherId;
+
+      await _client
+          .from('courses')
+          .update(courseData)
+          .eq('course_code', _courseCodeController.text);
+      await loadAllAdminData();
+      _clearCourseControllers();
+      setState(() {
+        showEditCourseForm = false;
+        _selectedTeacherId = null;
+        _editingCourse = null;
+      });
+      _showSnackBar('Course updated successfully', Colors.green);
     } catch (error) {
       _showSnackBar('Error: $error', Colors.red);
     }
@@ -238,6 +295,20 @@ class _MyAdminState extends State<MyAdmin> {
     _courseCodeController.clear();
     _courseNameController.clear();
     _courseCreditsController.clear();
+    _courseSemesterController.clear();
+    _selectedTeacherId = null;
+  }
+
+  void _editCourse(Map<String, dynamic> course) {
+    _courseCodeController.text = course['course_code'] ?? '';
+    _courseNameController.text = course['course_name'] ?? '';
+    _courseCreditsController.text = (course['credits'] ?? 3).toString();
+    _courseSemesterController.text = (course['semester'] ?? '').toString();
+    _selectedTeacherId = course['teacher_id'];
+    setState(() {
+      _editingCourse = course;
+      showEditCourseForm = true;
+    });
   }
 
   //DELETE CONFIRMATION
@@ -398,19 +469,23 @@ class _MyAdminState extends State<MyAdmin> {
 
     return RefreshIndicator(
       onRefresh: loadAllAdminData,
-      child: Column(
-        children: [
-          _buildAdminHeader(),
-          _buildSearchBar(),
-          _buildStatsCards(),
-          _buildTabBar(),
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: _buildActiveContent(),
-              ),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                _buildAdminHeader(),
+                _buildSearchBar(),
+                _buildStatsCards(),
+                _buildTabBar(),
+              ],
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([_buildActiveContent()]),
             ),
           ),
         ],
@@ -439,12 +514,12 @@ class _MyAdminState extends State<MyAdmin> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context); // Close dialog
-              _clearAdminSession(); // Clear any user data/session if needed
-              // Navigate to login page
-              Navigator.push(
+              Navigator.pop(context);
+              _clearAdminSession();
+              Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false,
               );
             },
             style: ElevatedButton.styleFrom(
@@ -461,16 +536,7 @@ class _MyAdminState extends State<MyAdmin> {
     );
   }
 
-  // Clear admin session data
   void _clearAdminSession() async {
-    // Clear any stored admin data
-    // For example:
-    // final prefs = await SharedPreferences.getInstance();
-    // await prefs.clear();
-
-    // If using Supabase Auth
-    // await Supabase.instance.client.auth.signOut();
-
     print('Admin session cleared');
   }
 
@@ -680,6 +746,7 @@ class _MyAdminState extends State<MyAdmin> {
             showAddStudentForm = false;
             showAddTeacherForm = false;
             showAddCourseForm = false;
+            showEditCourseForm = false;
           });
         },
         child: Container(
@@ -713,12 +780,11 @@ class _MyAdminState extends State<MyAdmin> {
   }
 
   Widget _buildActiveContent() {
-    // Show forms
     if (showAddStudentForm) return _buildAddStudentForm();
     if (showAddTeacherForm) return _buildAddTeacherForm();
     if (showAddCourseForm) return _buildAddCourseForm();
+    if (showEditCourseForm) return _buildEditCourseForm();
 
-    // Show lists
     switch (activeTab) {
       case 'students':
         return _buildStudentsList();
@@ -731,7 +797,6 @@ class _MyAdminState extends State<MyAdmin> {
     }
   }
 
-  //ADD FORMS
   Widget _buildAddStudentForm() {
     return Container(
       margin: const EdgeInsets.all(20),
@@ -1039,6 +1104,96 @@ class _MyAdminState extends State<MyAdmin> {
             ),
             keyboardType: TextInputType.number,
           ),
+          const SizedBox(height: 15),
+          // Semester Dropdown
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonFormField<int>(
+              value: _courseSemesterController.text.isNotEmpty
+                  ? int.tryParse(_courseSemesterController.text)
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Semester *',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                prefixIcon: Icon(Icons.calendar_month),
+              ),
+              items: List.generate(8, (index) {
+                int semester = index + 1;
+                return DropdownMenuItem<int>(
+                  value: semester,
+                  child: Text('Semester $semester'),
+                );
+              }),
+              onChanged: (value) {
+                setState(() {
+                  _courseSemesterController.text = value?.toString() ?? '';
+                });
+              },
+              isExpanded: true,
+              hint: const Text('Select Semester'),
+            ),
+          ),
+          const SizedBox(height: 15),
+          // Teacher Dropdown
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: _selectedTeacherId,
+              decoration: const InputDecoration(
+                labelText: 'Assign Teacher (Optional)',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('None - Unassigned'),
+                ),
+                ...teachers.map<DropdownMenuItem<String>>((teacher) {
+                  return DropdownMenuItem<String>(
+                    value: teacher['teacher_id']?.toString(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          teacher['name'] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        Text(
+                          '${teacher['designation'] ?? 'Teacher'} • ${teacher['teacher_id']}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedTeacherId = value;
+                });
+              },
+              isExpanded: true,
+            ),
+          ),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -1066,6 +1221,199 @@ class _MyAdminState extends State<MyAdmin> {
                   ),
                   child: const Text(
                     'Add Course',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditCourseForm() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Edit Course',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() {
+                  showEditCourseForm = false;
+                  _clearCourseControllers();
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _courseCodeController,
+            enabled: false,
+            decoration: const InputDecoration(
+              labelText: 'Course Code',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.code),
+              filled: true,
+              fillColor: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: _courseNameController,
+            decoration: const InputDecoration(
+              labelText: 'Course Name *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.book),
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: _courseCreditsController,
+            decoration: const InputDecoration(
+              labelText: 'Credits',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.grade),
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 15),
+          // Semester Dropdown
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonFormField<int>(
+              value: _courseSemesterController.text.isNotEmpty
+                  ? int.tryParse(_courseSemesterController.text)
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Semester *',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                prefixIcon: Icon(Icons.calendar_month),
+              ),
+              items: List.generate(8, (index) {
+                int semester = index + 1;
+                return DropdownMenuItem<int>(
+                  value: semester,
+                  child: Text('Semester $semester'),
+                );
+              }),
+              onChanged: (value) {
+                setState(() {
+                  _courseSemesterController.text = value?.toString() ?? '';
+                });
+              },
+              isExpanded: true,
+              hint: const Text('Select Semester'),
+            ),
+          ),
+          const SizedBox(height: 15),
+          // Teacher Dropdown
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: _selectedTeacherId,
+              decoration: const InputDecoration(
+                labelText: 'Assign Teacher (Optional)',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('None - Unassigned'),
+                ),
+                ...teachers.map<DropdownMenuItem<String>>((teacher) {
+                  return DropdownMenuItem<String>(
+                    value: teacher['teacher_id']?.toString(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          teacher['name'] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        Text(
+                          '${teacher['designation'] ?? 'Teacher'} • ${teacher['teacher_id']}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedTeacherId = value;
+                });
+              },
+              isExpanded: true,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      showEditCourseForm = false;
+                      _clearCourseControllers();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: updateCourse,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: const Text(
+                    'Update Course',
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -1366,6 +1714,10 @@ class _MyAdminState extends State<MyAdmin> {
   }
 
   Widget _buildCourseCard(Map<String, dynamic> course) {
+    final teacherInfo = course['teachers'];
+    final teacherName = teacherInfo != null ? teacherInfo['name'] : null;
+    final semester = course['semester'];
+
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 15),
       padding: const EdgeInsets.all(15),
@@ -1408,18 +1760,100 @@ class _MyAdminState extends State<MyAdmin> {
                   course['course_name'] ?? 'Unknown',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
-                Text(
-                  'Credits: ${course['credits'] ?? 3}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (semester != null && semester.toString().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Semester $semester',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.purple.shade700,
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${course['credits'] ?? 3} Credits',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                    if (teacherName != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.person,
+                              size: 10,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              teacherName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (_) =>
-                _showDeleteConfirmation('course', course['course_code']),
+            onSelected: (value) {
+              if (value == 'edit') {
+                _editCourse(course);
+              } else if (value == 'delete') {
+                _showDeleteConfirmation('course', course['course_code']);
+              }
+            },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, color: Colors.blue, size: 20),
+                    SizedBox(width: 8),
+                    Text('Edit', style: TextStyle(color: Colors.blue)),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -1492,6 +1926,7 @@ class _MyAdminState extends State<MyAdmin> {
     _courseCodeController.dispose();
     _courseNameController.dispose();
     _courseCreditsController.dispose();
+    _courseSemesterController.dispose();
     super.dispose();
   }
 }

@@ -390,11 +390,12 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
-              _clearUserSession(); // Clear any user data/session if needed
-              // Navigate to login page
-              Navigator.push(
+              _clearUserSession();
+              // REPLACE instead of PUSH - clears navigation stack
+              Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false, // This removes all previous routes
               );
             },
             style: ElevatedButton.styleFrom(

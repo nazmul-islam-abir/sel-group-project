@@ -224,12 +224,12 @@ class _MyStudentState extends State<MyStudent>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
-              // Clear any user data/session if needed
               _clearUserSession();
-              // Navigate to login page
-              Navigator.push(
+              // REPLACE instead of PUSH - clears navigation stack
+              Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false, // This removes all previous routes
               );
             },
             style: ElevatedButton.styleFrom(
